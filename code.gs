@@ -1955,15 +1955,6 @@ function requestPasswordResetOtp(payload) {
       return { success: false, message: 'Akun masih berstatus Pending Approval. Hubungi Admin untuk aktivasi terlebih dahulu.' };
     }
 
-    // Validasi konfirmasi kata sandi & nomor WhatsApp wajib
-    if (payload.confirmPassword !== undefined && payload.confirmPassword.toString() !== pass) {
-      return { success: false, message: 'Konfirmasi kata sandi tidak cocok!' };
-    }
-    var waDigits = noWa.replace(/[^0-9]/g, '');
-    if (!waDigits || waDigits.length < 8 || waDigits.length > 16) {
-      return { success: false, message: 'Nomor WhatsApp aktif wajib diisi dengan benar (minimal 8 digit)!' };
-    }
-
     var otpCode = String(Math.floor(100000 + Math.random() * 900000));
     var otpKey = 'OTP_RESET_' + sha256Hex_(email).slice(0, 24);
     var otpData = {
@@ -2050,6 +2041,11 @@ function confirmPasswordResetWithOtp(payload) {
         sheet.getRange(i + 2, 16).setValue(0);
         SpreadsheetApp.flush();
         cache.remove(otpKey);
+        var emailHashAdm = sha256Hex_(email).slice(0, 24);
+        try {
+          cache.remove('ADM_LOCK_' + emailHashAdm);
+          cache.remove('ADM_FAIL_' + emailHashAdm);
+        } catch (eClr) {}
         revokeAllSessionsForEmail_(email);
         logActivity_('Reset Password OTP', email, 'Pengguna berhasil mereset password dengan verifikasi OTP.', null);
         return { success: true, message: 'Kata sandi berhasil diperbarui! Silakan login dengan sandi baru.' };
