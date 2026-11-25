@@ -948,6 +948,210 @@ function loginUser(credentials) {
   }
 }
 
+/**
+ * ================================================================================
+ * 🔐 GOOGLE SIGN-IN (OAUTH 2.0 / GIS) CREDENTIAL HANDLER
+ * ================================================================================
+ */
+function decodeGoogleJwtPayload_(jwtString) {
+  if (!jwtString || typeof jwtString !== 'string') return null;
+  var parts = jwtString.split('.');
+  if (parts.length < 2) return null;
+  try {
+    var b64 = parts[1].replace(/-/g, '+').replace(/_/g, '/');
+    while (b64.length % 4) b64 += '=';
+    var decoded = Utilities.newBlob(Utilities.base64Decode(b64)).getDataAsString('UTF-8');
+    return JSON.parse(decoded);
+  } catch (e) {
+    return null;
+  }
+}
+
+function loginWithGoogle(payload) {
+  var lock = LockService.getScriptLock();
+  try {
+    lock.waitLock(8000);
+    payload = payload || {};
+    var credential = (payload.credential || payload.idToken || '').toString().trim();
+    if (!credential) {
+      return { success: false, message: 'Kredensial token Google tidak ditemukan.' };
+    }
+
+    var tokenData = decodeGoogleJwtPayload_(credential);
+    if (!tokenData || !tokenData.email) {
+      return { success: false, message: 'Token Google tidak valid atau format tidak sesuai.' };
+    }
+
+    var cleanEmail = (tokenData.email || '').toString().trim().toLowerCase();
+    var googleName = (tokenData.name || cleanEmail.split('@')[0]).toString().trim();
+    var googlePicture = (tokenData.picture || '').toString().trim();
+    var isVerified = (tokenData.email_verified === true || tokenData.email_verified === 'true');
+
+    if (!isVerified) {
+      return { success: false, message: 'Email Google Anda belum terverifikasi oleh Google.' };
+    }
+
+    var sheet = getUserSheet_();
+    var lastRow = sheet.getLastRow();
+    var nowStr = Utilities.formatDate(new Date(), 'Asia/Jakarta', 'dd/MM/yyyy HH:mm:ss');
+
+    if (lastRow > 1) {
+      var data = sheet.getRange(2, 1, lastRow - 1, 19).getDisplayValues();
+      for (var i = 0; i < data.length; i++) {
+        var r = data[i];
+        var statusHapus = (r[18] || 'Active').toString().trim().toLowerCase();
+        if (statusHapus === 'deleted') continue;
+
+        var emailInSheet = (r[5] || '').toString().trim().toLowerCase();
+        if (emailInSheet === cleanEmail) {
+          var role = (r[7] || 'Pengguna').toString().trim().toUpperCase();
+          var statusAkun = (r[14] || 'Aktif').toString().trim();
+          var stNorm = statusAkun.toLowerCase();
+
+          // 1. Cek Akun Dibekukan
+          if (stNorm === 'dibekukan' || stNorm === 'frozen' || stNorm === 'locked') {
+            return {
+              success: false,
+              message: 'Akun Anda telah DIBEKUKAN oleh sistem. Hubungi Super Admin untuk membuka blokir.'
+            };
+          }
+
+          // 2. Cek Akun Pending (Kecuali Super Admin / Owner)
+          var isOwner = (cleanEmail === 'markazyoutuber.official@gmail.com') || (role.indexOf('ADMIN') !== -1) || (role.indexOf('OWNER') !== -1);
+          if (!isOwner && (stNorm === 'pending' || stNorm === 'pending approval')) {
+            return {
+              success: false,
+              message: 'Akun Anda masih berstatus PENDING APPROVAL. Silakan hubungi Super Admin untuk persetujuan akun.'
+            };
+          }
+
+          // Reset fail count, perbarui last login & foto profil jika kosong
+          sheet.getRange(i + 2, 16).setValue(0);
+          sheet.getRange(i + 2, 18).setValue(nowStr);
+          if (googlePicture && !r[8]) {
+            sheet.getRange(i + 2, 9).setValue(googlePicture);
+          }
+          SpreadsheetApp.flush();
+
+          var cleanRole = role.replace(/[\s_]/g, '');
+          var normalizedRole = (cleanRole === 'SUPERADMIN' || cleanRole === 'OWNER' || cleanRole === 'SUPER' || cleanRole === 'ADMIN') ? 'SUPER_ADMIN' : 'TIM';
+          var izinJson = (r[16] || '{}').toString().trim();
+          var userPerms = normalizeUserPermsObj_(izinJson);
+          var sessionToken = createServerSession_(cleanEmail, r[0]);
+
+          var sessionUser = {
+            token: sessionToken,
+            id: r[0],
+            userId: r[0],
+            nama: r[1] || googleName,
+            nik: (r[2] || '').toString().trim(),
+            noWa: r[3] || '',
+            alamat: r[4] || '',
+            email: cleanEmail,
+            role: normalizedRole,
+            displayRole: r[7] || 'Pengguna',
+            fotoProfil: r[8] || googlePicture,
+            fotoKtpUrl: r[9] || '',
+            namaBank: r[10] || '',
+            bank: r[10] || '',
+            noRekening: r[11] || '',
+            atasNama: r[12] || '',
+            status: statusAkun,
+            izinAkses: userPerms,
+            authProvider: 'google'
+          };
+
+          logActivity_('Login Google Berhasil', cleanEmail, 'Masuk via Google Sign-In (' + normalizedRole + ')', sessionUser);
+
+          return {
+            success: true,
+            user: sessionUser,
+            userSession: sessionUser,
+            permissions: userPerms
+          };
+        }
+      }
+    }
+
+    // Akun belum terdaftar -> Registrasi Baru Otomatis via Google
+    var newUserId = generateId_('USR');
+    var isFirstOwner = (cleanEmail === 'markazyoutuber.official@gmail.com') || (lastRow <= 1);
+    var assignedRole = isFirstOwner ? 'Super Admin' : 'Pengguna';
+    var assignedStatus = isFirstOwner ? 'Aktif' : 'Pending Approval';
+    var defaultPerms = normalizeUserPermsObj_('{}');
+
+    var newRow = [
+      newUserId,
+      googleName,
+      '', // NIK
+      '', // No WhatsApp
+      '', // Alamat
+      cleanEmail,
+      hashPasswordSHA256(Utilities.getUuid()), // Sandi aman acak
+      assignedRole,
+      googlePicture, // Foto Profil dari Google
+      '', // Foto KTP URL
+      '', // Nama Bank
+      '', // No Rekening
+      '', // Atas Nama
+      nowStr, // Created_At
+      assignedStatus, // Status_Akun
+      0, // Salah_Password_Count
+      JSON.stringify(defaultPerms), // Izin_Akses_JSON
+      nowStr, // Last_Login
+      'Active' // Status_Hapus
+    ];
+
+    sheet.appendRow(newRow);
+    SpreadsheetApp.flush();
+
+    logActivity_('Registrasi Google', cleanEmail, 'Mendaftar via Google Sign-In (' + assignedRole + ')', null);
+
+    if (assignedStatus === 'Aktif') {
+      var normRole = isFirstOwner ? 'SUPER_ADMIN' : 'TIM';
+      var sessToken = createServerSession_(cleanEmail, newUserId);
+      var newSessionUser = {
+        token: sessToken,
+        id: newUserId,
+        userId: newUserId,
+        nama: googleName,
+        nik: '',
+        noWa: '',
+        alamat: '',
+        email: cleanEmail,
+        role: normRole,
+        displayRole: assignedRole,
+        fotoProfil: googlePicture,
+        fotoKtpUrl: '',
+        namaBank: '',
+        bank: '',
+        noRekening: '',
+        atasNama: '',
+        status: assignedStatus,
+        izinAkses: defaultPerms,
+        authProvider: 'google'
+      };
+
+      return {
+        success: true,
+        user: newSessionUser,
+        userSession: newSessionUser,
+        permissions: defaultPerms
+      };
+    } else {
+      return {
+        success: false,
+        pendingApproval: true,
+        message: 'Pendaftaran via akun Google berhasil! Akun Anda sedang menunggu persetujuan Super Admin.'
+      };
+    }
+  } catch (err) {
+    return { success: false, message: 'Google Sign-In Error: ' + err.message };
+  } finally {
+    try { lock.releaseLock(); } catch (e) {}
+  }
+}
+
 function logoutUser(userSession) {
   try {
     var verified = authenticateSession(userSession);

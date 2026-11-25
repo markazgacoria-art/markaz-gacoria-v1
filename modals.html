@@ -43,6 +43,16 @@
             </button>
         </form>
 
+        <!-- Divider & Google Sign-In Button Container -->
+        <div class="space-y-3 pt-1">
+            <div class="relative flex items-center justify-center">
+                <div class="border-t border-emerald-500/15 w-full"></div>
+                <span class="bg-[#07120b] px-3 text-[10px] text-slate-400 font-medium uppercase tracking-wider shrink-0">atau masuk dengan</span>
+                <div class="border-t border-emerald-500/15 w-full"></div>
+            </div>
+            <div id="googleSignInBtnLogin" class="flex justify-center w-full min-h-[44px]"></div>
+        </div>
+
         <div class="pt-3 border-t border-white/5 text-center text-xs text-gray-400">
             Belum punya akun? <button type="button" onclick="openModalRegister()" class="text-emerald-400 hover:text-emerald-300 font-bold">Daftar Akun Baru</button>
         </div>
@@ -62,6 +72,16 @@
             <button type="button" onclick="closeModalRegister()" class="w-8 h-8 rounded-lg bg-white/5 hover:bg-white/10 text-gray-400 hover:text-white flex items-center justify-center">
                 <i class="fa-solid fa-xmark text-sm"></i>
             </button>
+        </div>
+
+        <!-- Google Quick Sign-Up Option -->
+        <div class="px-5 pt-4 pb-1 space-y-2.5">
+            <div id="googleSignInBtnRegister" class="flex justify-center w-full min-h-[44px]"></div>
+            <div class="relative flex items-center justify-center pt-1">
+                <div class="border-t border-emerald-500/15 w-full"></div>
+                <span class="bg-[#07120b] px-3 text-[10px] text-slate-400 font-medium uppercase tracking-wider shrink-0">atau daftar manual dengan formulir & OTP</span>
+                <div class="border-t border-emerald-500/15 w-full"></div>
+            </div>
         </div>
 
         <!-- STEP 1: FORMULIR DATA PENDAFTARAN -->
