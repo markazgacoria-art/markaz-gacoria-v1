@@ -673,6 +673,15 @@ function initApp() {
   updateDigitalClock();
   setInterval(updateDigitalClock, 1000);
 
+  // Register PWA Service Worker (If Supported)
+  if ('serviceWorker' in navigator) {
+    window.addEventListener('load', function() {
+      navigator.serviceWorker.register('/sw.js').catch(function(err) {
+        console.log('SW note:', err.message);
+      });
+    });
+  }
+
   // Setup Mobile Drawer Listeners
   var btnOpen = document.getElementById('btnOpenMobileSidebar');
   var btnClose = document.getElementById('btnCloseMobileSidebar');
@@ -759,6 +768,33 @@ function closeMobileSidebarDrawer() {
   var bd = document.getElementById('sidebarBackdrop');
   if (sb) sb.classList.add('-translate-x-full');
   if (bd) bd.classList.add('hidden');
+}
+
+// ===============================================================================
+// PWA INSTALLATION CONTROLLER
+// ===============================================================================
+var deferredPwaPrompt = null;
+window.addEventListener('beforeinstallprompt', function(e) {
+  e.preventDefault();
+  deferredPwaPrompt = e;
+  var btnPwa = document.getElementById('btnInstallPwa');
+  if (btnPwa) btnPwa.classList.remove('hidden');
+});
+
+function triggerPwaInstall() {
+  if (deferredPwaPrompt) {
+    deferredPwaPrompt.prompt();
+    deferredPwaPrompt.userChoice.then(function(choice) {
+      if (choice && choice.outcome === 'accepted') {
+        showToast('DoGo Studio berhasil dipasang di perangkat Anda!', 'success');
+      }
+      deferredPwaPrompt = null;
+      var btnPwa = document.getElementById('btnInstallPwa');
+      if (btnPwa) btnPwa.classList.add('hidden');
+    });
+  } else {
+    showToast('Buka menu browser Anda lalu pilih "Add to Home Screen" atau "Install App"', 'info');
+  }
 }
 
 function isModuleReadOnly(mod, checkActions) {

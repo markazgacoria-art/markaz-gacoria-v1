@@ -1,7 +1,7 @@
 const fs = require('fs');
 const path = require('path');
 
-console.log('Building standalone HTML for Vercel deployment...');
+console.log('Building standalone HTML and PWA assets for Vercel deployment...');
 
 const indexFile = path.join(__dirname, 'index.html');
 const cssFile = path.join(__dirname, 'css.html');
@@ -25,5 +25,15 @@ indexHtml = indexHtml.replace(/<\?!=\s*include\(['"]js['"]\);\s*\?>/g, () => jsC
 
 const outputFile = path.join(publicDir, 'index.html');
 fs.writeFileSync(outputFile, indexHtml, 'utf8');
+
+// Copy PWA files to public directory
+const pwaFiles = ['manifest.json', 'sw.js', 'logo.jpg', 'icon-192.jpg', 'icon-512.jpg'];
+for (const file of pwaFiles) {
+  const src = path.join(__dirname, file);
+  const dest = path.join(publicDir, file);
+  if (fs.existsSync(src)) {
+    fs.copyFileSync(src, dest);
+  }
+}
 
 console.log('Build complete! Output file size:', fs.statSync(outputFile).size, 'bytes');

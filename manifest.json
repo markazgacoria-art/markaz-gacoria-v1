@@ -1,0 +1,26 @@
+{
+  "name": "DoGo Studio V1 - YouTube Content Management System",
+  "short_name": "DoGo Studio",
+  "description": "YouTube Studio Content Management Operating System by Markaz Gacoria",
+  "start_url": "/",
+  "scope": "/",
+  "display": "standalone",
+  "orientation": "any",
+  "background_color": "#060d09",
+  "theme_color": "#00e676",
+  "categories": ["productivity", "business", "utilities"],
+  "icons": [
+    {
+      "src": "/icon-192.jpg",
+      "sizes": "192x192",
+      "type": "image/jpeg",
+      "purpose": "any maskable"
+    },
+    {
+      "src": "/icon-512.jpg",
+      "sizes": "512x512",
+      "type": "image/jpeg",
+      "purpose": "any maskable"
+    }
+  ]
+}
