@@ -991,6 +991,11 @@ function loginWithGoogle(payload) {
       return { success: false, message: 'Email Google Anda belum terverifikasi oleh Google.' };
     }
 
+    var expectedClientId = '224443808801-cc7qfebil8jipnt4p1806vau8rabv302.apps.googleusercontent.com';
+    if (tokenData.aud && tokenData.aud !== expectedClientId) {
+      return { success: false, message: 'Client ID token Google tidak sesuai dengan DoGo Studio.' };
+    }
+
     var sheet = getUserSheet_();
     var lastRow = sheet.getLastRow();
     var nowStr = Utilities.formatDate(new Date(), 'Asia/Jakarta', 'dd/MM/yyyy HH:mm:ss');
