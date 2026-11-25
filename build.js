@@ -18,12 +18,12 @@ const cssContent = fs.readFileSync(cssFile, 'utf8');
 const modalsContent = fs.readFileSync(modalsFile, 'utf8');
 const jsContent = fs.readFileSync(jsFile, 'utf8');
 
-// Replace GAS template include tags
-indexHtml = indexHtml.replace(/<\?!\s*include\('css'\);\s*\?>/g, `<style>\n${cssContent}\n</style>`);
-indexHtml = indexHtml.replace(/<\?!\s*include\('modals'\);\s*\?>/g, `\n${modalsContent}\n`);
-indexHtml = indexHtml.replace(/<\?!\s*include\('js'\);\s*\?>/g, `<script>\n${jsContent}\n</script>`);
+// Replace GAS template include tags using callback functions to prevent '$' character corruption
+indexHtml = indexHtml.replace(/<\?!=\s*include\(['"]css['"]\);\s*\?>/g, () => cssContent);
+indexHtml = indexHtml.replace(/<\?!=\s*include\(['"]modals['"]\);\s*\?>/g, () => modalsContent);
+indexHtml = indexHtml.replace(/<\?!=\s*include\(['"]js['"]\);\s*\?>/g, () => jsContent);
 
 const outputFile = path.join(publicDir, 'index.html');
 fs.writeFileSync(outputFile, indexHtml, 'utf8');
 
-console.log('Build complete! Output generated at:', outputFile);
+console.log('Build complete! Output file size:', fs.statSync(outputFile).size, 'bytes');
