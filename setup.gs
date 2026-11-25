@@ -37,7 +37,9 @@ function setupDatabase() {
     'User_ID', 'Nama_Lengkap_KTP', 'NIK', 'Nomor_WhatsApp', 'Alamat_Domisili',
     'Email_Login', 'Password', 'Role', 'Foto_Profil_URL', 'Foto_KTP_URL',
     'Nama_Bank', 'Nomor_Rekening', 'Nama_di_Rekening', 'Tanggal_Bergabung',
-    'Status_Akun', 'Salah_Password_Count', 'Izin_Akses_JSON', 'Last_Login', 'Status_Hapus'
+    'Status_Akun', 'Salah_Password_Count', 'Izin_Akses_JSON', 'Last_Login', 'Status_Hapus',
+    'Foto_Wajah_URL', 'Foto_Selfie_KTP_URL', 'KYC_Status', 'KYC_Deadline_At',
+    'Last_Active_At', 'KYC_Verified_At', 'KYC_Note'
   ]);
 
   setupSheet_(ss, 'DataKeuangan', [
@@ -108,6 +110,18 @@ function setupSheet_(ss, sheetName, headers) {
       .setFontColor('#34d399')
       .setHorizontalAlignment('center');
     sheet.setFrozenRows(1);
+  } else {
+    // Safe Migration: tambahkan kolom baru di sebelah kanan jika belum ada tanpa menggeser data lama
+    var existingCols = sheet.getLastColumn();
+    if (existingCols < headers.length) {
+      var missingHeaders = headers.slice(existingCols);
+      sheet.getRange(1, existingCols + 1, 1, missingHeaders.length).setValues([missingHeaders]);
+      sheet.getRange(1, existingCols + 1, 1, missingHeaders.length)
+        .setFontWeight('bold')
+        .setBackground('#064e3b')
+        .setFontColor('#34d399')
+        .setHorizontalAlignment('center');
+    }
   }
   return sheet;
 }
@@ -136,12 +150,19 @@ function seedDefaultAdmin_(ss) {
       'Aktif',
       0,
       '{"modules":{"channel":true,"email":true,"finance":true,"jadwal":true},"actions":{"add":true,"edit":true,"delete":true},"allMateri":true,"allTools":true,"timCanViewFinance":true,"timCanViewAdSense":true}',
+      '-',
+      'Active',
+      '',
+      '',
+      'Terverifikasi',
+      '',
+      '',
       nowStr,
-      'Active'
+      'Owner Studio'
     ];
     sheet.appendRow(defaultAdmin);
     if (typeof Logger !== 'undefined' && Logger.log) {
-      Logger.log('Default Owner seeded (markazyoutuber.official@gmail.com). Initial random password generated (use Google Sign-In or reset OTP).');
+      Logger.log('Default Owner seeded (markazyoutuber.official@gmail.com). Initial random password generated (gunakan OTP / Lupa Sandi email untuk login awal).');
     }
   }
 }

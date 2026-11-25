@@ -132,10 +132,12 @@ body {
   display: none !important;
 }
 
-/* Stacked Modal Z-Index Hierarchy (REV-10.22) */
+/* Stacked Modal Z-Index Hierarchy (REV-10.22 / REV-10.23) */
 #modalTambahKategoriKeuangan,
 #modalDetailEmail,
-#modalConnectedChannels {
+#modalConnectedChannels,
+#modalKycVerification,
+#modalOwnerSecurityConfig {
   z-index: 60;
 }
 
@@ -144,6 +146,10 @@ body {
 #modalMateriPlayer,
 #modalStaffWorkTimeline {
   z-index: 70;
+}
+
+#modalCameraCapture {
+  z-index: 80;
 }
 
 #modalConfirmAction {

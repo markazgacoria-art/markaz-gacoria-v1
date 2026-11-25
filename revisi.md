@@ -1,7 +1,7 @@
 # 📋 DOKUMEN REVISI & RENCANA IMPLEMENTASI (revisi.md)
 **Sistem:** DoGo Studio V1 (v1.0 - Production Edition)  
 **Engine:** ZettBOT Core v4.1 by Zettbos  
-**Status Dokumen:** 🟢 100% SELESAI DITERAPKAN (VERIFIED & OPERATIONAL — REV-10.0 s.d. REV-10.22)
+**Status Dokumen:** 🟢 100% SELESAI DITERAPKAN (VERIFIED & OPERATIONAL — REV-10.0 s.d. REV-10.23)
 
 ---
 
@@ -1554,6 +1554,26 @@ Meskipun mayoritas endpoint bisnis telah memanggil `authenticateSession()` dan s
 - `scratch/validate_rev_10_22.js`: **58/58 PASSED** (`0 FAILED`)
 - `scratch/validate_syntax.js`: **100% VALID & BALANCED**
 - Regresi lintas versi lolos 100%: `validate_rev_10_21.js` (**88/88**), `validate_rev_10_20.js` (**92/92**), `validate_rev_10_19.js` (**114/114**), `validate_rev_10_17.js` (**41/41**), `validate_rev_10_16.js` (**59/59**), `validate_rev_10_15.js` (**31/31**), `validate_rev_10_13.js`, `10_12`, `10_11`, `10_10`. *(Catatan: skrip historis `10_9`, `10_14`, dan `10_18` menyisakan 1–2 cek string literal lama yang memang telah digantikan oleh pembaruan `REV-10.15`/`10.21`/`10.22`).*
+
+---
+
+## 🔐 Keamanan Login OTP 48 Jam, Pendaftaran Ringkas, Verifikasi KYC Kamera & Gemini OCR KTP (30 Hari Auto-Suspend), & Foto Profil (`REV-10.23`)
+
+**Status Implementasi:** 🟢 100% SELESAI DITERAPKAN & TERUJI (`43/43 PASSED` pada `scratch/validate_rev_10_23.js`)
+
+### Keputusan Arsitektur Terkunci oleh Owner:
+1. **Nonaktif Google Sign-In & Wajib OTP Login >= 48 Jam Tidak Aktif** (+ proteksi Owner cooldown 15 menit via `CacheService` agar kebal DoS tebakan sandi 5x).
+2. **Pendaftaran Ringkas 5 Input + OTP:** Nama Lengkap, Email, No. WA, Kata Sandi, Konfirmasi Kata Sandi.
+3. **KYC Tahap 2 Pakai Kamera Langsung & Scan Alamat Otomatis Gemini Vision AI (`GEMINI_API_KEY` di `ScriptProperties`):** Foto Wajah, Foto KTP (auto-scan alamat & NIK via Gemini Vision), Foto Wajah Memegang KTP (disimpan privat di Google Drive).
+4. **Masa Tenggang 30 Hari & Auto-Suspend:** Selama masa tenggang, akun memakai app normal dengan banner hitung mundur `#kycCountdownBanner`. Selesai otomatis (`Terverifikasi`) saat 3 foto kamera + alamat lengkap dikirim (Owner tetap punya tombol **Setujui / Tolak KYC** saat audit). Melewati 30 hari belum lengkap -> otomatis **Suspended** dan layar login memunculkan tombol **Hubungi Owner via WhatsApp**; hanya `SUPER_ADMIN` yang berhak mencabut suspen (`unsuspendUser`).
+5. **Ubah Foto Profil Mandiri:** Upload/jepret foto profil via `#modalMyProfile` -> Drive `/Foto Profil` & tampil live di `#sidebarUserAvatar`.
+
+### Berkas yang Diperbarui:
+- [setup.gs](file:///c:/Users/RAZER/.gemini/antigravity-ide/Markaz%20Gacoria%20V1/setup.gs): Safe Migration `setupSheet_()` menambah kolom 20–26 `DataUsers` tanpa geser kolom 1–19 (`Foto_Wajah_URL`, `Foto_Selfie_KTP_URL`, `KYC_Status`, `KYC_Deadline_At`, `Last_Active_At`, `KYC_Verified_At`, `KYC_Note`).
+- [code.gs](file:///c:/Users/RAZER/.gemini/antigravity-ide/Markaz%20Gacoria%20V1/code.gs): Nonaktif `loginWithGoogle`; tambah `verifyLoginOtp`, `resendLoginOtp`, `getPublicOwnerContact`, `scanKtpWithGemini`, `submitUserKyc`, `reviewUserKyc`, `unsuspendUser`, `getOwnerSecurityConfig`, `saveOwnerSecurityConfig`; pembaruan `loginUser`, `authenticateSession`, `syncUserSession`, `approveUser`, `getUsersData`, `updateUserProfile`, `updateMyProfileAndPassword`, `uploadStudioFile`, `getProtectedDriveImage`, & `runDailyWorkRecapJob`.
+- [api/gas.js](file:///c:/Users/RAZER/.gemini/antigravity-ide/Markaz%20Gacoria%20V1/api/gas.js): Menghapus `loginWithGoogle` & mendaftarkan seluruh endpoint OTP 48h, KYC, Gemini OCR, & Unsuspend di `ALLOWED_ACTIONS`.
+- [index.html](file:///c:/Users/RAZER/.gemini/antigravity-ide/Markaz%20Gacoria%20V1/index.html), [modals.html](file:///c:/Users/RAZER/.gemini/antigravity-ide/Markaz%20Gacoria%20V1/modals.html), [css.html](file:///c:/Users/RAZER/.gemini/antigravity-ide/Markaz%20Gacoria%20V1/css.html), [js.html](file:///c:/Users/RAZER/.gemini/antigravity-ide/Markaz%20Gacoria%20V1/js.html): Menghapus GIS script & tombol Google, menambah UI Step 2 Login OTP, layar Suspen + WA Owner, form daftar 5 kolom, banner countdown KYC 30 hari, modal KYC + WebRTC Live Camera (`#modalCameraCapture` + panduan bingkai & fallback `capture=`), audit KYC & Unsuspend di Detail/Edit User, modal Pengaturan Keamanan & OCR Owner, serta editor Foto Profil mandiri.
+
 
 
 

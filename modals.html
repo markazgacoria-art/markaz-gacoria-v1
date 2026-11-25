@@ -43,14 +43,55 @@
             </button>
         </form>
 
-        <!-- Divider & Google Sign-In Button Container -->
-        <div class="space-y-3 pt-1">
-            <div class="relative flex items-center justify-center">
-                <div class="border-t border-emerald-500/15 w-full"></div>
-                <span class="bg-[#07120b] px-3 text-[10px] text-slate-400 font-medium uppercase tracking-wider shrink-0">atau masuk dengan</span>
-                <div class="border-t border-emerald-500/15 w-full"></div>
+        <!-- STEP 2 LOGIN: VERIFIKASI OTP EMAIL (WAJIB JIKA >= 48 JAM TIDAK BUKA APP / LOGIN BARU) -->
+        <div id="loginStepOtp" class="hidden space-y-4 text-xs">
+            <div class="p-3.5 rounded-xl bg-emerald-500/10 border border-emerald-500/25 space-y-1.5">
+                <div class="flex items-center gap-2 text-emerald-400 font-bold text-xs">
+                    <i class="fa-solid fa-shield-halved text-sm"></i> Verifikasi Keamanan OTP Email
+                </div>
+                <p class="text-[11px] text-slate-300 leading-relaxed">
+                    Untuk melindungi aset studio (aktifitas tidak terdeteksi &ge; 48 jam / login awal), masukkan kode OTP 6-digit yang dikirim ke:
+                    <strong id="loginOtpTargetEmail" class="text-emerald-300 font-mono bg-black/40 px-1.5 py-0.5 rounded border border-emerald-500/20"></strong>
+                </p>
             </div>
-            <div id="googleSignInBtnLogin" class="flex justify-center w-full min-h-[44px]"></div>
+            <div class="space-y-1.5">
+                <label class="text-gray-300 font-semibold flex items-center justify-between">
+                    <span>Kode OTP 6 Digit <span class="text-rose-400">*</span></span>
+                    <span class="text-[10px] text-amber-400">Berlaku 10 menit</span>
+                </label>
+                <input type="text" id="loginOtpCode" maxlength="6" inputmode="numeric" pattern="[0-9]*" placeholder="123456"
+                    class="glass-input w-full px-4 py-3 rounded-xl text-center text-lg font-black tracking-[0.45em] font-mono bg-slate-900/90 text-emerald-300 border-emerald-500/35">
+            </div>
+            <div id="loginOtpErrorMsg" class="hidden p-2.5 rounded-xl bg-rose-500/15 border border-rose-500/30 text-rose-300 text-[11px]"></div>
+            <button type="button" id="btnVerifyLoginOtp" onclick="handleVerifyLoginOtp()" class="w-full btn-neon py-2.5 rounded-xl text-xs font-bold shadow-lg flex items-center justify-center gap-2">
+                <i class="fa-solid fa-check-double"></i>
+                <span>Verifikasi OTP &amp; Masuk</span>
+            </button>
+            <div class="flex items-center justify-between gap-2 pt-1">
+                <button type="button" onclick="backToPasswordLogin()" class="px-3 py-1.5 rounded-lg bg-white/5 hover:bg-white/10 text-slate-300 text-[11px] font-semibold">
+                    <i class="fa-solid fa-arrow-left mr-1"></i> Ganti Email/Sandi
+                </button>
+                <button type="button" id="btnResendLoginOtp" onclick="handleResendLoginOtp()" class="px-3 py-1.5 rounded-lg bg-emerald-500/10 hover:bg-emerald-500/20 text-emerald-400 border border-emerald-500/25 text-[11px] font-bold">
+                    Kirim Ulang OTP
+                </button>
+            </div>
+        </div>
+
+        <!-- PANEL AKUN TERSUSPEN (LEWAT 30 HARI BELUM KYC) -->
+        <div id="loginSuspendedBox" class="hidden p-4 rounded-xl bg-rose-500/10 border border-rose-500/35 space-y-3 text-xs">
+            <div class="flex items-center gap-2 text-rose-400 font-bold text-sm">
+                <i class="fa-solid fa-ban"></i> Akun Terkena Suspen (KYC 30 Hari)
+            </div>
+            <p id="loginSuspendedMessage" class="text-[11px] text-slate-200 leading-relaxed">
+                Akun Anda dinonaktifkan sementara karena melewati batas 30 hari verifikasi identitas (KYC). Wajib menghubungi Owner untuk membuka suspen.
+            </p>
+            <a id="btnSuspendedContactOwner" href="#" target="_blank" rel="noopener noreferrer" class="w-full py-2.5 px-4 rounded-xl bg-emerald-500 hover:bg-emerald-400 text-black font-extrabold text-xs flex items-center justify-center gap-2 shadow-lg transition-all">
+                <i class="fa-brands fa-whatsapp text-base"></i>
+                <span>Hubungi Owner Studio Sekarang</span>
+            </a>
+            <button type="button" onclick="resetLoginSuspendedState()" class="w-full py-2 rounded-xl bg-white/5 hover:bg-white/10 text-slate-300 text-[11px] font-semibold">
+                Kembali ke Form Login
+            </button>
         </div>
 
         <div class="pt-3 border-t border-white/5 text-center text-xs text-gray-400">
@@ -74,38 +115,26 @@
             </button>
         </div>
 
-        <!-- STEP 1: FORMULIR DATA PENDAFTARAN -->
+        <!-- STEP 1: FORMULIR DATA PENDAFTARAN RINGKAS (5 INPUT + OTP - REV-10.23) -->
         <form id="formRegister" onsubmit="handleRegisterSubmit(event)" class="flex-1 overflow-y-auto custom-scrollbar p-5 space-y-3.5 text-xs">
-            <!-- Google Quick Sign-Up Option (Step 1 Only) -->
-            <div class="pb-1 space-y-2.5">
-                <div id="googleSignInBtnRegister" class="flex justify-center w-full min-h-[44px]"></div>
-                <div class="relative flex items-center justify-center pt-1">
-                    <div class="border-t border-emerald-500/15 w-full"></div>
-                    <span class="bg-[#07120b] px-3 text-[10px] text-slate-400 font-medium uppercase tracking-wider shrink-0">atau daftar manual dengan formulir & OTP</span>
-                    <div class="border-t border-emerald-500/15 w-full"></div>
-                </div>
+            <div class="p-3 rounded-xl bg-emerald-500/10 border border-emerald-500/20 text-[11px] text-emerald-200 flex items-start gap-2">
+                <i class="fa-solid fa-shield-check text-emerald-400 mt-0.5 shrink-0"></i>
+                <span>Daftar cepat dengan data inti &amp; OTP Email. Setelah masuk ke aplikasi, lengkapi verifikasi foto wajah &amp; e-KTP maksimal dalam <strong>30 hari</strong>.</span>
             </div>
             <div class="space-y-1">
-                <label class="text-gray-300 font-semibold">Nama Lengkap Sesuai KTP <span class="text-rose-400">*</span></label>
-                <input type="text" id="regNama" required placeholder="Nama Lengkap" class="glass-input w-full px-3 py-2 rounded-xl text-xs bg-slate-900/80 text-white">
-            </div>
-            <div class="space-y-1">
-                <label class="text-gray-300 font-semibold">Nomor WhatsApp Aktif <span class="text-rose-400">*</span></label>
-                <input type="text" id="regNoWa" required placeholder="08xxxxxxxxxx" class="glass-input w-full px-3 py-2 rounded-xl text-xs bg-slate-900/80 text-white font-mono">
-            </div>
-            <div class="space-y-1">
-                <label class="text-gray-300 font-semibold">Alamat Domisili Lengkap <span class="text-rose-400">*</span></label>
-                <textarea id="regAlamat" rows="2" required placeholder="Alamat tempat tinggal saat ini" class="glass-input w-full px-3 py-2 rounded-xl text-xs bg-slate-900/80 text-white"></textarea>
+                <label class="text-gray-300 font-semibold">Nama Lengkap <span class="text-rose-400">*</span></label>
+                <input type="text" id="regNama" required minlength="2" placeholder="Nama Lengkap Sesuai KTP" class="glass-input w-full px-3 py-2 rounded-xl text-xs bg-slate-900/80 text-white">
             </div>
             <div class="space-y-1">
                 <label class="text-gray-300 font-semibold flex items-center justify-between">
-                    <span>Alamat Email Asli / Aktif <span class="text-rose-400">*</span></span>
-                    <span class="text-[10px] text-emerald-400 font-normal">Wajib aktif (Gmail/Yahoo/dll)</span>
+                    <span>Alamat Email Aktif <span class="text-rose-400">*</span></span>
+                    <span class="text-[10px] text-emerald-400 font-normal">Kode OTP dikirim ke email ini</span>
                 </label>
                 <input type="email" id="regEmail" required placeholder="namaanda@gmail.com" class="glass-input w-full px-3 py-2 rounded-xl text-xs bg-slate-900/80 text-white">
-                <p class="text-[10px] text-gray-400 flex items-center gap-1 pt-0.5">
-                    <i class="fa-solid fa-shield-halved text-emerald-400"></i> Kode OTP 6-digit verifikasi akan dikirimkan langsung ke alamat email ini.
-                </p>
+            </div>
+            <div class="space-y-1">
+                <label class="text-gray-300 font-semibold">Nomor WhatsApp Aktif <span class="text-rose-400">*</span></label>
+                <input type="tel" id="regNoWa" required placeholder="08xxxxxxxxxx" class="glass-input w-full px-3 py-2 rounded-xl text-xs bg-slate-900/80 text-white font-mono">
             </div>
             <div class="grid grid-cols-1 sm:grid-cols-2 gap-3">
                 <div class="space-y-1">
@@ -1784,19 +1813,49 @@
                     </div>
                 </div>
                 <div class="p-3 rounded-xl bg-slate-900/50 border border-white/5 space-y-1">
-                    <span class="text-[10px] uppercase font-bold text-slate-400 tracking-wider">Aktivitas Terakhir</span>
+                    <span class="text-[10px] uppercase font-bold text-slate-400 tracking-wider">Foto Wajah (Selfie)</span>
+                    <div id="detailUserWajahContainer" class="pt-1">
+                        <span class="text-slate-500 text-[11px]">Belum diunggah</span>
+                    </div>
+                </div>
+                <div class="p-3 rounded-xl bg-slate-900/50 border border-white/5 space-y-1">
+                    <span class="text-[10px] uppercase font-bold text-slate-400 tracking-wider">Foto Wajah + KTP</span>
+                    <div id="detailUserSelfieKtpContainer" class="pt-1">
+                        <span class="text-slate-500 text-[11px]">Belum diunggah</span>
+                    </div>
+                </div>
+                <div class="p-3 rounded-xl bg-slate-900/50 border border-white/5 space-y-1">
+                    <span class="text-[10px] uppercase font-bold text-slate-400 tracking-wider">Status &amp; Batas KYC (30 Hari)</span>
+                    <div id="detailUserKycStatusText" class="text-slate-300 font-semibold pt-0.5">-</div>
+                    <div id="detailUserKycNoteText" class="text-[10px] text-slate-400">-</div>
+                </div>
+                <div class="sm:col-span-2 p-3 rounded-xl bg-slate-900/50 border border-white/5 space-y-1">
+                    <span class="text-[10px] uppercase font-bold text-slate-400 tracking-wider">Aktivitas &amp; Login Terakhir</span>
                     <div class="text-slate-300 pt-0.5" id="detailUserLastLogin">-</div>
                 </div>
             </div>
         </div>
-        <div class="px-5 py-3 border-t border-white/10 flex justify-end gap-2 bg-[#07120b]">
-            <button type="button" id="btnDetailUserEdit" class="px-4 py-2 rounded-xl bg-blue-600 hover:bg-blue-500 text-white text-xs font-bold flex items-center gap-1.5 transition-all cursor-pointer">
-                <i class="fa-solid fa-pen-to-square text-xs"></i>
-                <span>Edit Pengguna</span>
-            </button>
-            <button type="button" onclick="closeModalDetailUser()" class="px-4 py-2 rounded-xl bg-white/5 hover:bg-white/10 text-gray-400 text-xs font-semibold cursor-pointer">
-                Tutup
-            </button>
+        <div class="px-5 py-3 border-t border-white/10 flex flex-wrap justify-between items-center gap-2 bg-[#07120b]">
+            <div class="flex flex-wrap items-center gap-1.5">
+                <button type="button" id="btnDetailUserApproveKyc" class="hidden px-3 py-1.5 rounded-xl bg-emerald-600 hover:bg-emerald-500 text-white text-[11px] font-bold flex items-center gap-1 cursor-pointer">
+                    <i class="fa-solid fa-shield-check"></i> Setujui KYC
+                </button>
+                <button type="button" id="btnDetailUserRejectKyc" class="hidden px-3 py-1.5 rounded-xl bg-amber-600/80 hover:bg-amber-500 text-white text-[11px] font-bold flex items-center gap-1 cursor-pointer">
+                    <i class="fa-solid fa-triangle-exclamation"></i> Tolak KYC
+                </button>
+                <button type="button" id="btnDetailUserUnsuspend" class="hidden px-3 py-1.5 rounded-xl bg-rose-600 hover:bg-rose-500 text-white text-[11px] font-bold flex items-center gap-1 cursor-pointer">
+                    <i class="fa-solid fa-unlock"></i> Cabut Suspen (+14 Hari)
+                </button>
+            </div>
+            <div class="flex items-center gap-2 ml-auto">
+                <button type="button" id="btnDetailUserEdit" class="px-4 py-2 rounded-xl bg-blue-600 hover:bg-blue-500 text-white text-xs font-bold flex items-center gap-1.5 transition-all cursor-pointer">
+                    <i class="fa-solid fa-pen-to-square text-xs"></i>
+                    <span>Edit Pengguna</span>
+                </button>
+                <button type="button" onclick="closeModalDetailUser()" class="px-4 py-2 rounded-xl bg-white/5 hover:bg-white/10 text-gray-400 text-xs font-semibold cursor-pointer">
+                    Tutup
+                </button>
+            </div>
         </div>
     </div>
 </div>
@@ -1853,8 +1912,19 @@
                         <option value="Aktif">Aktif</option>
                         <option value="Pending Approval">Pending Approval</option>
                         <option value="Dibekukan">Dibekukan</option>
+                        <option value="Suspended">Suspended (Suspen KYC 30 Hari)</option>
                     </select>
                 </div>
+            </div>
+
+            <div id="editUserKycBox" class="p-3 rounded-xl bg-amber-500/10 border border-amber-500/20 flex flex-wrap items-center justify-between gap-2 text-[11px]">
+                <div>
+                    <span class="font-bold text-amber-300">Status KYC:</span>
+                    <span id="editUserKycSummary" class="text-slate-200 ml-1">-</span>
+                </div>
+                <button type="button" id="btnEditUserUnsuspend" onclick="unsuspendUserFromEditModal()" class="hidden px-3 py-1 rounded-lg bg-rose-600 hover:bg-rose-500 text-white font-bold text-[10px] cursor-pointer">
+                    <i class="fa-solid fa-unlock mr-1"></i> Cabut Suspen (+14 Hari)
+                </button>
             </div>
 
             <div class="p-3 rounded-xl bg-slate-900/50 border border-white/5 space-y-2">
@@ -1929,6 +1999,42 @@
             </button>
         </div>
         <form id="formMyProfile" onsubmit="handleSaveMyProfile(event)" class="flex-1 overflow-y-auto custom-scrollbar p-5 space-y-3.5 text-xs">
+            <!-- UBAH FOTO PROFIL (REV-10.23) -->
+            <div class="p-3.5 rounded-xl bg-slate-900/70 border border-emerald-500/20 flex flex-col sm:flex-row items-center gap-3.5">
+                <div id="myProfAvatarPreview" class="w-16 h-16 rounded-full bg-emerald-500/20 border-2 border-emerald-500/40 flex items-center justify-center text-emerald-300 font-black text-xl overflow-hidden shrink-0">
+                    U
+                </div>
+                <div class="flex-1 text-center sm:text-left space-y-1.5 min-w-0">
+                    <div class="text-xs font-bold text-white">Foto Profil Akun</div>
+                    <p class="text-[10px] text-slate-400">Gunakan foto terbaik Anda untuk ditampilkan di sidebar studio.</p>
+                    <div class="flex flex-wrap items-center justify-center sm:justify-start gap-2 pt-0.5">
+                        <label class="cursor-pointer px-3 py-1.5 rounded-lg bg-emerald-600 hover:bg-emerald-500 text-white text-[11px] font-bold inline-flex items-center gap-1.5 transition-all">
+                            <i class="fa-solid fa-camera"></i>
+                            <span id="lblBtnUploadMyProfAvatar">Ganti Foto Profil</span>
+                            <input type="file" id="myProfAvatarFileInput" accept="image/*" class="hidden" onchange="handleMyProfileAvatarUpload(this)">
+                        </label>
+                        <button type="button" onclick="openKycCameraForProfileAvatar()" class="px-3 py-1.5 rounded-lg bg-white/5 hover:bg-white/10 text-emerald-300 border border-emerald-500/25 text-[11px] font-semibold inline-flex items-center gap-1.5 cursor-pointer">
+                            <i class="fa-solid fa-video"></i> Jepret Kamera
+                        </button>
+                    </div>
+                    <input type="hidden" id="myProfFotoProfilUrl">
+                </div>
+            </div>
+
+            <!-- KARTU STATUS VERIFIKASI KYC WAJIB (REV-10.23) -->
+            <div id="myProfKycCard" class="p-3.5 rounded-xl bg-amber-500/10 border border-amber-500/30 flex flex-col sm:flex-row sm:items-center justify-between gap-2.5">
+                <div class="space-y-0.5">
+                    <div class="flex items-center gap-2">
+                        <span class="text-xs font-bold text-white"><i class="fa-solid fa-id-card-clip text-amber-400 mr-1"></i> Verifikasi Identitas (KYC)</span>
+                        <span id="myProfKycBadge" class="text-[10px] font-bold px-2 py-0.5 rounded-full bg-amber-500/20 text-amber-300 border border-amber-500/30">Belum Lengkap</span>
+                    </div>
+                    <p id="myProfKycDesc" class="text-[10px] text-slate-300">Wajib Foto Wajah, Foto KTP (scan alamat), &amp; Selfie memegang KTP dalam 30 hari.</p>
+                </div>
+                <button type="button" onclick="closeModalMyProfile(); openModalKycVerification();" class="px-3 py-1.5 rounded-lg bg-amber-500 hover:bg-amber-400 text-black text-[11px] font-extrabold shrink-0 cursor-pointer">
+                    <i class="fa-solid fa-camera mr-1"></i> Buka KYC
+                </button>
+            </div>
+
             <div class="grid grid-cols-1 sm:grid-cols-2 gap-3">
                 <div class="space-y-1">
                     <label class="text-gray-300 font-semibold">Nama Lengkap <span class="text-rose-400">*</span></label>
@@ -2133,5 +2239,221 @@
         <div class="px-5 py-3 border-t border-white/10 bg-[#07120b] flex justify-end shrink-0">
             <button type="button" onclick="closeStaffWorkTimelineModal()" class="px-4 py-2 rounded-xl bg-white/10 hover:bg-white/15 text-white text-xs font-semibold">Tutup</button>
         </div>
+    </div>
+</div>
+
+<!-- 25. MODAL VERIFIKASI IDENTITAS TAHAP 2 / KYC WAJIB KAMERA (REV-10.23) -->
+<div id="modalKycVerification" class="app-modal hidden">
+    <div class="glass-card w-full max-w-2xl max-h-[92vh] flex flex-col p-0 overflow-hidden shadow-2xl border border-amber-500/40">
+        <div class="px-5 py-4 border-b border-white/10 flex items-center justify-between shrink-0 bg-[#07120b]">
+            <div>
+                <h3 class="text-sm font-bold text-white flex items-center gap-2">
+                    <i class="fa-solid fa-shield-halved text-amber-400"></i> Verifikasi Identitas Wajib (KYC Studio)
+                </h3>
+                <p id="kycModalSubtitle" class="text-[11px] text-amber-300">Wajib diambil langsung lewat Kamera dalam tenggang waktu 30 hari.</p>
+            </div>
+            <button type="button" onclick="closeModal('modalKycVerification')" class="w-8 h-8 rounded-lg bg-white/5 hover:bg-white/10 text-gray-400 hover:text-white flex items-center justify-center cursor-pointer">
+                <i class="fa-solid fa-xmark text-sm"></i>
+            </button>
+        </div>
+
+        <form id="formKycVerification" onsubmit="handleSubmitKycVerification(event)" class="flex-1 overflow-y-auto custom-scrollbar p-5 space-y-4 text-xs">
+            <div id="kycModalStatusBanner" class="p-3 rounded-xl bg-amber-500/10 border border-amber-500/30 text-[11px] text-slate-200 flex items-center justify-between gap-2">
+                <span id="kycModalDeadlineInfo">Batas waktu verifikasi identitas 30 hari.</span>
+                <span id="kycModalBadge" class="px-2 py-0.5 rounded-full bg-amber-500/20 text-amber-300 font-bold text-[10px]">Belum Lengkap</span>
+            </div>
+
+            <!-- 3 TAHAP FOTO KAMERA LANGSUNG -->
+            <div class="grid grid-cols-1 md:grid-cols-3 gap-3">
+                <!-- 1. FOTO WAJAH -->
+                <div class="p-3 rounded-xl bg-slate-900/70 border border-emerald-500/20 flex flex-col justify-between gap-2.5">
+                    <div class="space-y-1.5">
+                        <div class="flex items-center justify-between">
+                            <span class="font-bold text-white text-[11px]">1. Foto Wajah (Selfie) <span class="text-rose-400">*</span></span>
+                            <span id="kycStatusWajah" class="text-[10px] text-slate-400">Belum ada</span>
+                        </div>
+                        <div id="kycPreviewWajahBox" class="h-28 rounded-lg bg-black/50 border border-white/10 flex items-center justify-center overflow-hidden text-slate-500 text-[10px]">
+                            <div class="text-center space-y-1">
+                                <i class="fa-solid fa-user-circle text-2xl text-slate-600"></i>
+                                <p>Pratinjau Wajah</p>
+                            </div>
+                        </div>
+                    </div>
+                    <button type="button" id="btnCaptureKycWajah" onclick="openLiveCameraCapture('wajah')" class="w-full py-2 px-3 rounded-lg bg-emerald-600 hover:bg-emerald-500 text-white font-bold text-[11px] flex items-center justify-center gap-1.5 cursor-pointer">
+                        <i class="fa-solid fa-camera"></i> Ambil Foto Wajah
+                    </button>
+                    <input type="hidden" id="kycFotoWajahUrl">
+                </div>
+
+                <!-- 2. FOTO KTP -->
+                <div class="p-3 rounded-xl bg-slate-900/70 border border-emerald-500/20 flex flex-col justify-between gap-2.5">
+                    <div class="space-y-1.5">
+                        <div class="flex items-center justify-between">
+                            <span class="font-bold text-white text-[11px]">2. Foto e-KTP Asli <span class="text-rose-400">*</span></span>
+                            <span id="kycStatusKtp" class="text-[10px] text-slate-400">Belum ada</span>
+                        </div>
+                        <div id="kycPreviewKtpBox" class="h-28 rounded-lg bg-black/50 border border-white/10 flex items-center justify-center overflow-hidden text-slate-500 text-[10px]">
+                            <div class="text-center space-y-1">
+                                <i class="fa-regular fa-id-card text-2xl text-slate-600"></i>
+                                <p>Pratinjau e-KTP</p>
+                            </div>
+                        </div>
+                    </div>
+                    <div class="space-y-1.5">
+                        <button type="button" id="btnCaptureKycKtp" onclick="openLiveCameraCapture('ktp')" class="w-full py-2 px-3 rounded-lg bg-emerald-600 hover:bg-emerald-500 text-white font-bold text-[11px] flex items-center justify-center gap-1.5 cursor-pointer">
+                            <i class="fa-solid fa-camera"></i> Ambil Foto KTP
+                        </button>
+                        <button type="button" id="btnScanKtpGemini" onclick="triggerScanLastCapturedKtp()" class="hidden w-full py-1.5 px-2.5 rounded-lg bg-amber-500/20 hover:bg-amber-500/30 text-amber-300 border border-amber-500/35 font-bold text-[10px] flex items-center justify-center gap-1 cursor-pointer">
+                            <i class="fa-solid fa-wand-magic-sparkles"></i> Scan Ulang Alamat AI
+                        </button>
+                    </div>
+                    <input type="hidden" id="kycFotoKtpUrl">
+                </div>
+
+                <!-- 3. FOTO WAJAH + KTP -->
+                <div class="p-3 rounded-xl bg-slate-900/70 border border-emerald-500/20 flex flex-col justify-between gap-2.5">
+                    <div class="space-y-1.5">
+                        <div class="flex items-center justify-between">
+                            <span class="font-bold text-white text-[11px]">3. Selfie Pegang KTP <span class="text-rose-400">*</span></span>
+                            <span id="kycStatusSelfieKtp" class="text-[10px] text-slate-400">Belum ada</span>
+                        </div>
+                        <div id="kycPreviewSelfieKtpBox" class="h-28 rounded-lg bg-black/50 border border-white/10 flex items-center justify-center overflow-hidden text-slate-500 text-[10px]">
+                            <div class="text-center space-y-1">
+                                <i class="fa-solid fa-address-card text-2xl text-slate-600"></i>
+                                <p>Wajah + KTP Jelas</p>
+                            </div>
+                        </div>
+                    </div>
+                    <button type="button" id="btnCaptureKycSelfieKtp" onclick="openLiveCameraCapture('selfie_ktp')" class="w-full py-2 px-3 rounded-lg bg-emerald-600 hover:bg-emerald-500 text-white font-bold text-[11px] flex items-center justify-center gap-1.5 cursor-pointer">
+                        <i class="fa-solid fa-camera"></i> Selfie + Pegang KTP
+                    </button>
+                    <input type="hidden" id="kycFotoSelfieKtpUrl">
+                </div>
+            </div>
+
+            <!-- HASIL SCAN & INPUT ALAMAT KTP -->
+            <div class="p-4 rounded-xl bg-slate-950/60 border border-emerald-500/25 space-y-3">
+                <div class="flex items-center justify-between gap-2">
+                    <span class="text-xs font-bold text-emerald-400 flex items-center gap-1.5">
+                        <i class="fa-solid fa-location-dot"></i> Data Alamat Lengkap (Auto-Scan KTP AI)
+                    </span>
+                    <span id="kycOcrStatusMsg" class="text-[10px] text-slate-400">Otomatis terisi saat foto KTP diambil</span>
+                </div>
+                <div class="space-y-1">
+                    <label class="text-gray-300 font-semibold">Alamat Lengkap Sesuai KTP <span class="text-rose-400">*</span></label>
+                    <textarea id="kycAlamat" rows="3" required minlength="8" placeholder="Ambil Foto KTP untuk scan otomatis, atau periksa/lengkapi alamat Jalan, RT/RW, Kel/Desa, Kecamatan, Kota..." class="glass-input w-full px-3 py-2 rounded-xl text-xs bg-slate-900/90 text-white"></textarea>
+                </div>
+                <div class="space-y-1">
+                    <label class="text-gray-300 font-semibold">NIK e-KTP <span class="text-[10px] text-slate-400 font-normal">(Terisi otomatis jika terbaca AI)</span></label>
+                    <input type="text" id="kycNik" maxlength="20" placeholder="16 digit NIK" class="glass-input w-full px-3 py-2 rounded-xl text-xs bg-slate-900/90 text-white font-mono">
+                </div>
+            </div>
+
+            <div class="pt-3 border-t border-white/10 flex items-center justify-end gap-2">
+                <button type="button" onclick="closeModal('modalKycVerification')" class="px-4 py-2 rounded-xl bg-white/5 hover:bg-white/10 text-gray-400 font-semibold">Tutup</button>
+                <button type="submit" id="btnSubmitKycVerification" class="px-5 py-2.5 rounded-xl btn-neon font-bold flex items-center gap-2 shadow-lg">
+                    <i class="fa-solid fa-shield-check"></i>
+                    <span>Simpan &amp; Selesaikan Verifikasi</span>
+                </button>
+            </div>
+        </form>
+    </div>
+</div>
+
+<!-- 26. MODAL KAMERA LANGSUNG WEBRTC (KHUSUS KYC & PROFIL - REV-10.23) -->
+<div id="modalCameraCapture" class="app-modal hidden">
+    <div class="glass-card w-full max-w-lg max-h-[92vh] flex flex-col p-0 overflow-hidden shadow-2xl border border-emerald-500/40 bg-[#060d09]">
+        <div class="px-4 py-3 border-b border-white/10 flex items-center justify-between bg-[#07120b] shrink-0">
+            <div>
+                <h3 id="cameraModalTitle" class="text-sm font-bold text-white flex items-center gap-2">
+                    <i class="fa-solid fa-camera text-emerald-400"></i> Kamera Langsung
+                </h3>
+                <p id="cameraModalHint" class="text-[10px] text-slate-400">Posisikan wajah / e-KTP tepat di dalam bingkai panduan</p>
+            </div>
+            <button type="button" onclick="closeLiveCameraModal()" class="w-8 h-8 rounded-lg bg-white/5 hover:bg-white/10 text-gray-400 hover:text-white flex items-center justify-center cursor-pointer">
+                <i class="fa-solid fa-xmark text-sm"></i>
+            </button>
+        </div>
+
+        <div class="p-4 space-y-3 overflow-y-auto custom-scrollbar">
+            <!-- Viewfinder Area -->
+            <div class="relative w-full aspect-[4/3] rounded-xl overflow-hidden bg-black border border-emerald-500/30 flex items-center justify-center">
+                <video id="kycCameraVideo" autoplay playsinline muted class="w-full h-full object-cover"></video>
+                <canvas id="kycCameraCanvas" class="hidden w-full h-full object-contain bg-black"></canvas>
+
+                <!-- Frame Overlay Guide -->
+                <div id="cameraGuideOverlay" class="pointer-events-none absolute inset-0 flex items-center justify-center">
+                    <div id="cameraGuideBox" class="w-64 h-40 rounded-xl border-2 border-dashed border-emerald-400/80 shadow-[0_0_0_9999px_rgba(0,0,0,0.4)]"></div>
+                </div>
+
+                <!-- Fallback Notice if getUserMedia blocked/denied -->
+                <div id="cameraFallbackBox" class="hidden absolute inset-0 bg-slate-950/95 p-5 flex flex-col items-center justify-center text-center gap-3">
+                    <i class="fa-solid fa-video-slash text-3xl text-amber-400"></i>
+                    <p id="cameraFallbackReason" class="text-xs text-slate-300 leading-relaxed">
+                        Akses kamera langsung browser tidak tersedia atau ditolak izinnya. Gunakan tombol Kamera Sistem di bawah ini.
+                    </p>
+                    <label class="cursor-pointer px-4 py-2.5 rounded-xl btn-neon text-xs font-bold inline-flex items-center gap-2 shadow-lg">
+                        <i class="fa-solid fa-camera"></i>
+                        <span>Buka Kamera Sistem HP</span>
+                        <input type="file" id="kycNativeCameraInput" accept="image/*" capture="environment" class="hidden" onchange="handleNativeCameraCapture(this)">
+                    </label>
+                </div>
+            </div>
+
+            <!-- Capture Controls -->
+            <div id="cameraLiveControls" class="flex items-center justify-between gap-2">
+                <button type="button" onclick="toggleLiveCameraFacing()" class="px-3.5 py-2.5 rounded-xl bg-white/5 hover:bg-white/10 text-slate-200 border border-white/10 text-xs font-semibold flex items-center gap-1.5 cursor-pointer">
+                    <i class="fa-solid fa-camera-rotate"></i> Putar Kamera
+                </button>
+                <button type="button" id="btnSnapLivePhoto" onclick="snapLiveCameraFrame()" class="flex-1 py-2.5 px-4 rounded-xl btn-neon text-xs font-extrabold flex items-center justify-center gap-2 shadow-lg cursor-pointer">
+                    <i class="fa-solid fa-circle-dot"></i> Ambil Foto Sekarang
+                </button>
+            </div>
+
+            <!-- Confirm Captured Photo Controls -->
+            <div id="cameraConfirmControls" class="hidden flex items-center justify-between gap-2">
+                <button type="button" onclick="retakeLiveCameraFrame()" class="px-4 py-2.5 rounded-xl bg-white/10 hover:bg-white/15 text-white text-xs font-bold flex items-center gap-1.5 cursor-pointer">
+                    <i class="fa-solid fa-rotate-left"></i> Foto Ulang
+                </button>
+                <button type="button" id="btnConfirmLivePhoto" onclick="confirmAndUploadCameraPhoto()" class="flex-1 py-2.5 px-4 rounded-xl btn-neon text-xs font-extrabold flex items-center justify-center gap-2 shadow-lg cursor-pointer">
+                    <i class="fa-solid fa-cloud-arrow-up"></i> Pakai &amp; Unggah Foto Ini
+                </button>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- 27. MODAL PENGATURAN KEAMANAN & GEMINI OCR OWNER (KHUSUS SUPER ADMIN - REV-10.23) -->
+<div id="modalOwnerSecurityConfig" class="app-modal hidden">
+    <div class="glass-card w-full max-w-md max-h-[90vh] flex flex-col p-0 overflow-hidden shadow-2xl border border-amber-500/40">
+        <div class="px-5 py-4 border-b border-white/10 flex items-center justify-between bg-[#07120b] shrink-0">
+            <h3 class="text-sm font-bold text-white flex items-center gap-2">
+                <i class="fa-solid fa-shield-halved text-amber-400"></i> Pengaturan Keamanan &amp; OCR KTP
+            </h3>
+            <button type="button" onclick="closeModal('modalOwnerSecurityConfig')" class="w-8 h-8 rounded-lg bg-white/5 hover:bg-white/10 text-gray-400 hover:text-white flex items-center justify-center cursor-pointer">
+                <i class="fa-solid fa-xmark text-sm"></i>
+            </button>
+        </div>
+        <form id="formOwnerSecurityConfig" onsubmit="handleSaveOwnerSecurityConfig(event)" class="p-5 space-y-4 text-xs overflow-y-auto custom-scrollbar">
+            <div class="space-y-1">
+                <label class="text-gray-300 font-semibold">Nomor WhatsApp Resmi Owner (Layar Suspen)</label>
+                <input type="text" id="ownerSecWaInput" placeholder="0812xxxxxxxx" class="glass-input w-full px-3 py-2 rounded-xl text-xs bg-slate-900/90 text-white font-mono">
+                <p class="text-[10px] text-slate-400">Ditampilkan di tombol Hubungi Owner bila akun pengguna terkena suspen KYC 30 hari.</p>
+            </div>
+            <div class="space-y-1">
+                <div class="flex items-center justify-between">
+                    <label class="text-gray-300 font-semibold">Gemini Vision API Key (Auto-Scan KTP)</label>
+                    <span id="ownerSecGeminiStatus" class="text-[10px] text-slate-400">Belum diatur</span>
+                </div>
+                <input type="password" id="ownerSecGeminiKeyInput" placeholder="AIzaSy... (kosongkan jika tidak ingin mengubah)" class="glass-input w-full px-3 py-2 rounded-xl text-xs bg-slate-900/90 text-white font-mono">
+                <p class="text-[10px] text-slate-400">Disimpan aman di <code>ScriptProperties</code> Google Apps Script, tidak pernah dikirim ke browser.</p>
+            </div>
+            <div class="pt-3 border-t border-white/10 flex justify-end gap-2">
+                <button type="button" onclick="closeModal('modalOwnerSecurityConfig')" class="px-4 py-2 rounded-xl bg-white/5 hover:bg-white/10 text-gray-400 font-semibold">Tutup</button>
+                <button type="submit" id="btnSaveOwnerSecConfig" class="px-5 py-2 rounded-xl btn-neon font-bold flex items-center gap-1.5 shadow-lg">
+                    <i class="fa-solid fa-floppy-disk"></i> Simpan Pengaturan
+                </button>
+            </div>
+        </form>
     </div>
 </div>

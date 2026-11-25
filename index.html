@@ -14,10 +14,6 @@
   <link rel="icon" type="image/jpeg" href="/icon-192.jpg">
   <link rel="apple-touch-icon" href="/icon-192.jpg">
   
-  <!-- Google Identity Services (Sign in with Google) -->
-  <meta name="google-signin-client_id" content="224443808801-cc7qfebil8jipnt4p1806vau8rabv302.apps.googleusercontent.com">
-  <script src="https://accounts.google.com/gsi/client" async defer></script>
-  
   <!-- Tailwind CSS -->
   <script src="https://cdn.tailwindcss.com"></script>
   
@@ -245,6 +241,26 @@
 
       <!-- Sub-Views Content Wrapper -->
       <div class="p-3 sm:p-4 md:p-6 lg:p-8 flex-1 flex flex-col gap-6 min-w-0 w-full max-w-full">
+
+        <!-- KYC Wajib 30 Hari Countdown Banner -->
+        <div id="kycCountdownBanner" class="hidden glass-card p-3.5 sm:p-4 border border-amber-500/40 bg-gradient-to-r from-amber-500/15 via-slate-900/90 to-emerald-950/30 flex flex-col sm:flex-row sm:items-center justify-between gap-3 shadow-lg">
+          <div class="flex items-start sm:items-center gap-3 min-w-0">
+            <div class="w-10 h-10 rounded-xl bg-amber-500/20 border border-amber-500/35 text-amber-300 flex items-center justify-center shrink-0">
+              <i class="fa-solid fa-id-card-clip text-base"></i>
+            </div>
+            <div class="min-w-0">
+              <div class="flex flex-wrap items-center gap-2">
+                <h4 id="kycBannerTitle" class="text-xs sm:text-sm font-bold text-white">Verifikasi Identitas Tahap 2 (KYC) Wajib Dilengkapi</h4>
+                <span id="kycBannerDaysBadge" class="text-[10px] font-extrabold px-2 py-0.5 rounded-full bg-amber-500/20 text-amber-300 border border-amber-500/35">Sisa 30 Hari</span>
+              </div>
+              <p id="kycBannerSubtitle" class="text-[11px] text-slate-300 mt-0.5">Ambil Foto Wajah, Foto e-KTP (auto-scan alamat), &amp; Selfie memegang KTP sebelum batas waktu agar akun tidak otomatis terkena suspen.</p>
+            </div>
+          </div>
+          <button type="button" onclick="openModalKycVerification()" class="px-4 py-2 rounded-xl bg-amber-500 hover:bg-amber-400 text-black text-xs font-extrabold flex items-center justify-center gap-2 shrink-0 shadow-md transition-all cursor-pointer">
+            <i class="fa-solid fa-camera"></i>
+            <span>Verifikasi Sekarang</span>
+          </button>
+        </div>
 
         <!-- ===================================================================== -->
         <!-- 1. VIEW DASHBOARD EKSEKUTIF                                           -->
@@ -1005,8 +1021,12 @@
                 <span id="usersScopeBadge" class="text-[10px] font-bold px-2 py-0.5 rounded-full bg-emerald-500/20 text-emerald-400 border border-emerald-500/30">Admin Panel</span>
                 <span id="usersReadOnlyBadge" class="hidden text-[10px] font-bold px-2.5 py-0.5 rounded-full bg-amber-500/20 text-amber-300 border border-amber-500/30">Mode Lihat Saja</span>
               </div>
-              <p class="text-xs md:text-sm text-slate-400">Persetujuan akun (Approval Gate), profil pengguna, kontrol izin granular, dan status akun.</p>
+              <p class="text-xs md:text-sm text-slate-400">Persetujuan akun (Approval Gate), profil pengguna, kontrol izin granular, verifikasi KYC, dan status akun.</p>
             </div>
+            <button type="button" id="btnOwnerSecurityConfig" onclick="openOwnerSecurityConfigModal()" class="hidden px-3.5 py-2 rounded-xl bg-amber-500/15 hover:bg-amber-500/25 text-amber-300 border border-amber-500/30 text-xs font-bold flex items-center gap-2 shrink-0 transition-all cursor-pointer">
+              <i class="fa-solid fa-shield-halved"></i>
+              <span>Pengaturan Keamanan &amp; OCR</span>
+            </button>
           </div>
 
           <!-- Search Bar & Filter Status -->
@@ -1019,9 +1039,10 @@
             <div class="flex items-center gap-2.5 w-full sm:w-auto">
               <select id="userFilterStatus" onchange="filterUsersByStatus()" class="glass-input px-3 py-2 rounded-xl text-xs">
                 <option value="">Semua Status Akun</option>
-                <option value="aktif">🟢 Aktif</option>
-                <option value="pending">🟡 Pending Approval</option>
-                <option value="dibekukan">🔴 Dibekukan</option>
+                <option value="aktif">Aktif</option>
+                <option value="pending">Pending Approval</option>
+                <option value="dibekukan">Dibekukan (5x Salah)</option>
+                <option value="suspended">Suspen (KYC 30 Hari)</option>
               </select>
             </div>
           </div>

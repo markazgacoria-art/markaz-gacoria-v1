@@ -10,11 +10,14 @@ const ALLOWED_EXACT_ORIGINS = new Set([
 ]);
 
 const ALLOWED_ACTIONS = new Set([
-  'ping', 'loginUser', 'loginWithGoogle', 'logoutUser', 'syncUserSession',
+  'ping', 'loginUser', 'verifyLoginOtp', 'resendLoginOtp', 'getPublicOwnerContact',
+  'logoutUser', 'syncUserSession',
   'requestRegistrationOtp', 'confirmRegistrationWithOtp', 'requestPasswordResetOtp',
   'confirmPasswordResetWithOtp', 'requestPasswordReset', 'getUsersData', 'approveUser',
-  'unfreezeUser', 'updateUserPermissions', 'deleteUser', 'updateUserProfile',
-  'updateMyProfileAndPassword', 'getActivityLogs', 'getDashboardSummary', 'quickUpdateUpload',
+  'unfreezeUser', 'unsuspendUser', 'updateUserPermissions', 'deleteUser', 'updateUserProfile',
+  'updateMyProfileAndPassword', 'submitUserKyc', 'scanKtpWithGemini', 'reviewUserKyc',
+  'getOwnerSecurityConfig', 'saveOwnerSecurityConfig',
+  'getActivityLogs', 'getDashboardSummary', 'quickUpdateUpload',
   'getCalendarSchedule', 'getMasterDropdowns', 'getEmailOptions', 'getChannelsData',
   'saveChannel', 'uploadChannelAsset', 'uploadStudioFile', 'getProtectedDriveImage',
   'deleteChannel', 'getEmailsData', 'getEmailDetailByAddressOrId', 'saveEmail', 'deleteEmail',

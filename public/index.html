@@ -14,10 +14,6 @@
   <link rel="icon" type="image/jpeg" href="/icon-192.jpg">
   <link rel="apple-touch-icon" href="/icon-192.jpg">
   
-  <!-- Google Identity Services (Sign in with Google) -->
-  <meta name="google-signin-client_id" content="224443808801-cc7qfebil8jipnt4p1806vau8rabv302.apps.googleusercontent.com">
-  <script src="https://accounts.google.com/gsi/client" async defer></script>
-  
   <!-- Tailwind CSS -->
   <script src="https://cdn.tailwindcss.com"></script>
   
@@ -164,10 +160,12 @@ body {
   display: none !important;
 }
 
-/* Stacked Modal Z-Index Hierarchy (REV-10.22) */
+/* Stacked Modal Z-Index Hierarchy (REV-10.22 / REV-10.23) */
 #modalTambahKategoriKeuangan,
 #modalDetailEmail,
-#modalConnectedChannels {
+#modalConnectedChannels,
+#modalKycVerification,
+#modalOwnerSecurityConfig {
   z-index: 60;
 }
 
@@ -176,6 +174,10 @@ body {
 #modalMateriPlayer,
 #modalStaffWorkTimeline {
   z-index: 70;
+}
+
+#modalCameraCapture {
+  z-index: 80;
 }
 
 #modalConfirmAction {
@@ -505,6 +507,26 @@ body {
 
       <!-- Sub-Views Content Wrapper -->
       <div class="p-3 sm:p-4 md:p-6 lg:p-8 flex-1 flex flex-col gap-6 min-w-0 w-full max-w-full">
+
+        <!-- KYC Wajib 30 Hari Countdown Banner -->
+        <div id="kycCountdownBanner" class="hidden glass-card p-3.5 sm:p-4 border border-amber-500/40 bg-gradient-to-r from-amber-500/15 via-slate-900/90 to-emerald-950/30 flex flex-col sm:flex-row sm:items-center justify-between gap-3 shadow-lg">
+          <div class="flex items-start sm:items-center gap-3 min-w-0">
+            <div class="w-10 h-10 rounded-xl bg-amber-500/20 border border-amber-500/35 text-amber-300 flex items-center justify-center shrink-0">
+              <i class="fa-solid fa-id-card-clip text-base"></i>
+            </div>
+            <div class="min-w-0">
+              <div class="flex flex-wrap items-center gap-2">
+                <h4 id="kycBannerTitle" class="text-xs sm:text-sm font-bold text-white">Verifikasi Identitas Tahap 2 (KYC) Wajib Dilengkapi</h4>
+                <span id="kycBannerDaysBadge" class="text-[10px] font-extrabold px-2 py-0.5 rounded-full bg-amber-500/20 text-amber-300 border border-amber-500/35">Sisa 30 Hari</span>
+              </div>
+              <p id="kycBannerSubtitle" class="text-[11px] text-slate-300 mt-0.5">Ambil Foto Wajah, Foto e-KTP (auto-scan alamat), &amp; Selfie memegang KTP sebelum batas waktu agar akun tidak otomatis terkena suspen.</p>
+            </div>
+          </div>
+          <button type="button" onclick="openModalKycVerification()" class="px-4 py-2 rounded-xl bg-amber-500 hover:bg-amber-400 text-black text-xs font-extrabold flex items-center justify-center gap-2 shrink-0 shadow-md transition-all cursor-pointer">
+            <i class="fa-solid fa-camera"></i>
+            <span>Verifikasi Sekarang</span>
+          </button>
+        </div>
 
         <!-- ===================================================================== -->
         <!-- 1. VIEW DASHBOARD EKSEKUTIF                                           -->
@@ -1265,8 +1287,12 @@ body {
                 <span id="usersScopeBadge" class="text-[10px] font-bold px-2 py-0.5 rounded-full bg-emerald-500/20 text-emerald-400 border border-emerald-500/30">Admin Panel</span>
                 <span id="usersReadOnlyBadge" class="hidden text-[10px] font-bold px-2.5 py-0.5 rounded-full bg-amber-500/20 text-amber-300 border border-amber-500/30">Mode Lihat Saja</span>
               </div>
-              <p class="text-xs md:text-sm text-slate-400">Persetujuan akun (Approval Gate), profil pengguna, kontrol izin granular, dan status akun.</p>
+              <p class="text-xs md:text-sm text-slate-400">Persetujuan akun (Approval Gate), profil pengguna, kontrol izin granular, verifikasi KYC, dan status akun.</p>
             </div>
+            <button type="button" id="btnOwnerSecurityConfig" onclick="openOwnerSecurityConfigModal()" class="hidden px-3.5 py-2 rounded-xl bg-amber-500/15 hover:bg-amber-500/25 text-amber-300 border border-amber-500/30 text-xs font-bold flex items-center gap-2 shrink-0 transition-all cursor-pointer">
+              <i class="fa-solid fa-shield-halved"></i>
+              <span>Pengaturan Keamanan &amp; OCR</span>
+            </button>
           </div>
 
           <!-- Search Bar & Filter Status -->
@@ -1279,9 +1305,10 @@ body {
             <div class="flex items-center gap-2.5 w-full sm:w-auto">
               <select id="userFilterStatus" onchange="filterUsersByStatus()" class="glass-input px-3 py-2 rounded-xl text-xs">
                 <option value="">Semua Status Akun</option>
-                <option value="aktif">🟢 Aktif</option>
-                <option value="pending">🟡 Pending Approval</option>
-                <option value="dibekukan">🔴 Dibekukan</option>
+                <option value="aktif">Aktif</option>
+                <option value="pending">Pending Approval</option>
+                <option value="dibekukan">Dibekukan (5x Salah)</option>
+                <option value="suspended">Suspen (KYC 30 Hari)</option>
               </select>
             </div>
           </div>
@@ -1658,14 +1685,55 @@ body {
             </button>
         </form>
 
-        <!-- Divider & Google Sign-In Button Container -->
-        <div class="space-y-3 pt-1">
-            <div class="relative flex items-center justify-center">
-                <div class="border-t border-emerald-500/15 w-full"></div>
-                <span class="bg-[#07120b] px-3 text-[10px] text-slate-400 font-medium uppercase tracking-wider shrink-0">atau masuk dengan</span>
-                <div class="border-t border-emerald-500/15 w-full"></div>
+        <!-- STEP 2 LOGIN: VERIFIKASI OTP EMAIL (WAJIB JIKA >= 48 JAM TIDAK BUKA APP / LOGIN BARU) -->
+        <div id="loginStepOtp" class="hidden space-y-4 text-xs">
+            <div class="p-3.5 rounded-xl bg-emerald-500/10 border border-emerald-500/25 space-y-1.5">
+                <div class="flex items-center gap-2 text-emerald-400 font-bold text-xs">
+                    <i class="fa-solid fa-shield-halved text-sm"></i> Verifikasi Keamanan OTP Email
+                </div>
+                <p class="text-[11px] text-slate-300 leading-relaxed">
+                    Untuk melindungi aset studio (aktifitas tidak terdeteksi &ge; 48 jam / login awal), masukkan kode OTP 6-digit yang dikirim ke:
+                    <strong id="loginOtpTargetEmail" class="text-emerald-300 font-mono bg-black/40 px-1.5 py-0.5 rounded border border-emerald-500/20"></strong>
+                </p>
             </div>
-            <div id="googleSignInBtnLogin" class="flex justify-center w-full min-h-[44px]"></div>
+            <div class="space-y-1.5">
+                <label class="text-gray-300 font-semibold flex items-center justify-between">
+                    <span>Kode OTP 6 Digit <span class="text-rose-400">*</span></span>
+                    <span class="text-[10px] text-amber-400">Berlaku 10 menit</span>
+                </label>
+                <input type="text" id="loginOtpCode" maxlength="6" inputmode="numeric" pattern="[0-9]*" placeholder="123456"
+                    class="glass-input w-full px-4 py-3 rounded-xl text-center text-lg font-black tracking-[0.45em] font-mono bg-slate-900/90 text-emerald-300 border-emerald-500/35">
+            </div>
+            <div id="loginOtpErrorMsg" class="hidden p-2.5 rounded-xl bg-rose-500/15 border border-rose-500/30 text-rose-300 text-[11px]"></div>
+            <button type="button" id="btnVerifyLoginOtp" onclick="handleVerifyLoginOtp()" class="w-full btn-neon py-2.5 rounded-xl text-xs font-bold shadow-lg flex items-center justify-center gap-2">
+                <i class="fa-solid fa-check-double"></i>
+                <span>Verifikasi OTP &amp; Masuk</span>
+            </button>
+            <div class="flex items-center justify-between gap-2 pt-1">
+                <button type="button" onclick="backToPasswordLogin()" class="px-3 py-1.5 rounded-lg bg-white/5 hover:bg-white/10 text-slate-300 text-[11px] font-semibold">
+                    <i class="fa-solid fa-arrow-left mr-1"></i> Ganti Email/Sandi
+                </button>
+                <button type="button" id="btnResendLoginOtp" onclick="handleResendLoginOtp()" class="px-3 py-1.5 rounded-lg bg-emerald-500/10 hover:bg-emerald-500/20 text-emerald-400 border border-emerald-500/25 text-[11px] font-bold">
+                    Kirim Ulang OTP
+                </button>
+            </div>
+        </div>
+
+        <!-- PANEL AKUN TERSUSPEN (LEWAT 30 HARI BELUM KYC) -->
+        <div id="loginSuspendedBox" class="hidden p-4 rounded-xl bg-rose-500/10 border border-rose-500/35 space-y-3 text-xs">
+            <div class="flex items-center gap-2 text-rose-400 font-bold text-sm">
+                <i class="fa-solid fa-ban"></i> Akun Terkena Suspen (KYC 30 Hari)
+            </div>
+            <p id="loginSuspendedMessage" class="text-[11px] text-slate-200 leading-relaxed">
+                Akun Anda dinonaktifkan sementara karena melewati batas 30 hari verifikasi identitas (KYC). Wajib menghubungi Owner untuk membuka suspen.
+            </p>
+            <a id="btnSuspendedContactOwner" href="#" target="_blank" rel="noopener noreferrer" class="w-full py-2.5 px-4 rounded-xl bg-emerald-500 hover:bg-emerald-400 text-black font-extrabold text-xs flex items-center justify-center gap-2 shadow-lg transition-all">
+                <i class="fa-brands fa-whatsapp text-base"></i>
+                <span>Hubungi Owner Studio Sekarang</span>
+            </a>
+            <button type="button" onclick="resetLoginSuspendedState()" class="w-full py-2 rounded-xl bg-white/5 hover:bg-white/10 text-slate-300 text-[11px] font-semibold">
+                Kembali ke Form Login
+            </button>
         </div>
 
         <div class="pt-3 border-t border-white/5 text-center text-xs text-gray-400">
@@ -1689,38 +1757,26 @@ body {
             </button>
         </div>
 
-        <!-- STEP 1: FORMULIR DATA PENDAFTARAN -->
+        <!-- STEP 1: FORMULIR DATA PENDAFTARAN RINGKAS (5 INPUT + OTP - REV-10.23) -->
         <form id="formRegister" onsubmit="handleRegisterSubmit(event)" class="flex-1 overflow-y-auto custom-scrollbar p-5 space-y-3.5 text-xs">
-            <!-- Google Quick Sign-Up Option (Step 1 Only) -->
-            <div class="pb-1 space-y-2.5">
-                <div id="googleSignInBtnRegister" class="flex justify-center w-full min-h-[44px]"></div>
-                <div class="relative flex items-center justify-center pt-1">
-                    <div class="border-t border-emerald-500/15 w-full"></div>
-                    <span class="bg-[#07120b] px-3 text-[10px] text-slate-400 font-medium uppercase tracking-wider shrink-0">atau daftar manual dengan formulir & OTP</span>
-                    <div class="border-t border-emerald-500/15 w-full"></div>
-                </div>
+            <div class="p-3 rounded-xl bg-emerald-500/10 border border-emerald-500/20 text-[11px] text-emerald-200 flex items-start gap-2">
+                <i class="fa-solid fa-shield-check text-emerald-400 mt-0.5 shrink-0"></i>
+                <span>Daftar cepat dengan data inti &amp; OTP Email. Setelah masuk ke aplikasi, lengkapi verifikasi foto wajah &amp; e-KTP maksimal dalam <strong>30 hari</strong>.</span>
             </div>
             <div class="space-y-1">
-                <label class="text-gray-300 font-semibold">Nama Lengkap Sesuai KTP <span class="text-rose-400">*</span></label>
-                <input type="text" id="regNama" required placeholder="Nama Lengkap" class="glass-input w-full px-3 py-2 rounded-xl text-xs bg-slate-900/80 text-white">
-            </div>
-            <div class="space-y-1">
-                <label class="text-gray-300 font-semibold">Nomor WhatsApp Aktif <span class="text-rose-400">*</span></label>
-                <input type="text" id="regNoWa" required placeholder="08xxxxxxxxxx" class="glass-input w-full px-3 py-2 rounded-xl text-xs bg-slate-900/80 text-white font-mono">
-            </div>
-            <div class="space-y-1">
-                <label class="text-gray-300 font-semibold">Alamat Domisili Lengkap <span class="text-rose-400">*</span></label>
-                <textarea id="regAlamat" rows="2" required placeholder="Alamat tempat tinggal saat ini" class="glass-input w-full px-3 py-2 rounded-xl text-xs bg-slate-900/80 text-white"></textarea>
+                <label class="text-gray-300 font-semibold">Nama Lengkap <span class="text-rose-400">*</span></label>
+                <input type="text" id="regNama" required minlength="2" placeholder="Nama Lengkap Sesuai KTP" class="glass-input w-full px-3 py-2 rounded-xl text-xs bg-slate-900/80 text-white">
             </div>
             <div class="space-y-1">
                 <label class="text-gray-300 font-semibold flex items-center justify-between">
-                    <span>Alamat Email Asli / Aktif <span class="text-rose-400">*</span></span>
-                    <span class="text-[10px] text-emerald-400 font-normal">Wajib aktif (Gmail/Yahoo/dll)</span>
+                    <span>Alamat Email Aktif <span class="text-rose-400">*</span></span>
+                    <span class="text-[10px] text-emerald-400 font-normal">Kode OTP dikirim ke email ini</span>
                 </label>
                 <input type="email" id="regEmail" required placeholder="namaanda@gmail.com" class="glass-input w-full px-3 py-2 rounded-xl text-xs bg-slate-900/80 text-white">
-                <p class="text-[10px] text-gray-400 flex items-center gap-1 pt-0.5">
-                    <i class="fa-solid fa-shield-halved text-emerald-400"></i> Kode OTP 6-digit verifikasi akan dikirimkan langsung ke alamat email ini.
-                </p>
+            </div>
+            <div class="space-y-1">
+                <label class="text-gray-300 font-semibold">Nomor WhatsApp Aktif <span class="text-rose-400">*</span></label>
+                <input type="tel" id="regNoWa" required placeholder="08xxxxxxxxxx" class="glass-input w-full px-3 py-2 rounded-xl text-xs bg-slate-900/80 text-white font-mono">
             </div>
             <div class="grid grid-cols-1 sm:grid-cols-2 gap-3">
                 <div class="space-y-1">
@@ -3399,19 +3455,49 @@ body {
                     </div>
                 </div>
                 <div class="p-3 rounded-xl bg-slate-900/50 border border-white/5 space-y-1">
-                    <span class="text-[10px] uppercase font-bold text-slate-400 tracking-wider">Aktivitas Terakhir</span>
+                    <span class="text-[10px] uppercase font-bold text-slate-400 tracking-wider">Foto Wajah (Selfie)</span>
+                    <div id="detailUserWajahContainer" class="pt-1">
+                        <span class="text-slate-500 text-[11px]">Belum diunggah</span>
+                    </div>
+                </div>
+                <div class="p-3 rounded-xl bg-slate-900/50 border border-white/5 space-y-1">
+                    <span class="text-[10px] uppercase font-bold text-slate-400 tracking-wider">Foto Wajah + KTP</span>
+                    <div id="detailUserSelfieKtpContainer" class="pt-1">
+                        <span class="text-slate-500 text-[11px]">Belum diunggah</span>
+                    </div>
+                </div>
+                <div class="p-3 rounded-xl bg-slate-900/50 border border-white/5 space-y-1">
+                    <span class="text-[10px] uppercase font-bold text-slate-400 tracking-wider">Status &amp; Batas KYC (30 Hari)</span>
+                    <div id="detailUserKycStatusText" class="text-slate-300 font-semibold pt-0.5">-</div>
+                    <div id="detailUserKycNoteText" class="text-[10px] text-slate-400">-</div>
+                </div>
+                <div class="sm:col-span-2 p-3 rounded-xl bg-slate-900/50 border border-white/5 space-y-1">
+                    <span class="text-[10px] uppercase font-bold text-slate-400 tracking-wider">Aktivitas &amp; Login Terakhir</span>
                     <div class="text-slate-300 pt-0.5" id="detailUserLastLogin">-</div>
                 </div>
             </div>
         </div>
-        <div class="px-5 py-3 border-t border-white/10 flex justify-end gap-2 bg-[#07120b]">
-            <button type="button" id="btnDetailUserEdit" class="px-4 py-2 rounded-xl bg-blue-600 hover:bg-blue-500 text-white text-xs font-bold flex items-center gap-1.5 transition-all cursor-pointer">
-                <i class="fa-solid fa-pen-to-square text-xs"></i>
-                <span>Edit Pengguna</span>
-            </button>
-            <button type="button" onclick="closeModalDetailUser()" class="px-4 py-2 rounded-xl bg-white/5 hover:bg-white/10 text-gray-400 text-xs font-semibold cursor-pointer">
-                Tutup
-            </button>
+        <div class="px-5 py-3 border-t border-white/10 flex flex-wrap justify-between items-center gap-2 bg-[#07120b]">
+            <div class="flex flex-wrap items-center gap-1.5">
+                <button type="button" id="btnDetailUserApproveKyc" class="hidden px-3 py-1.5 rounded-xl bg-emerald-600 hover:bg-emerald-500 text-white text-[11px] font-bold flex items-center gap-1 cursor-pointer">
+                    <i class="fa-solid fa-shield-check"></i> Setujui KYC
+                </button>
+                <button type="button" id="btnDetailUserRejectKyc" class="hidden px-3 py-1.5 rounded-xl bg-amber-600/80 hover:bg-amber-500 text-white text-[11px] font-bold flex items-center gap-1 cursor-pointer">
+                    <i class="fa-solid fa-triangle-exclamation"></i> Tolak KYC
+                </button>
+                <button type="button" id="btnDetailUserUnsuspend" class="hidden px-3 py-1.5 rounded-xl bg-rose-600 hover:bg-rose-500 text-white text-[11px] font-bold flex items-center gap-1 cursor-pointer">
+                    <i class="fa-solid fa-unlock"></i> Cabut Suspen (+14 Hari)
+                </button>
+            </div>
+            <div class="flex items-center gap-2 ml-auto">
+                <button type="button" id="btnDetailUserEdit" class="px-4 py-2 rounded-xl bg-blue-600 hover:bg-blue-500 text-white text-xs font-bold flex items-center gap-1.5 transition-all cursor-pointer">
+                    <i class="fa-solid fa-pen-to-square text-xs"></i>
+                    <span>Edit Pengguna</span>
+                </button>
+                <button type="button" onclick="closeModalDetailUser()" class="px-4 py-2 rounded-xl bg-white/5 hover:bg-white/10 text-gray-400 text-xs font-semibold cursor-pointer">
+                    Tutup
+                </button>
+            </div>
         </div>
     </div>
 </div>
@@ -3468,8 +3554,19 @@ body {
                         <option value="Aktif">Aktif</option>
                         <option value="Pending Approval">Pending Approval</option>
                         <option value="Dibekukan">Dibekukan</option>
+                        <option value="Suspended">Suspended (Suspen KYC 30 Hari)</option>
                     </select>
                 </div>
+            </div>
+
+            <div id="editUserKycBox" class="p-3 rounded-xl bg-amber-500/10 border border-amber-500/20 flex flex-wrap items-center justify-between gap-2 text-[11px]">
+                <div>
+                    <span class="font-bold text-amber-300">Status KYC:</span>
+                    <span id="editUserKycSummary" class="text-slate-200 ml-1">-</span>
+                </div>
+                <button type="button" id="btnEditUserUnsuspend" onclick="unsuspendUserFromEditModal()" class="hidden px-3 py-1 rounded-lg bg-rose-600 hover:bg-rose-500 text-white font-bold text-[10px] cursor-pointer">
+                    <i class="fa-solid fa-unlock mr-1"></i> Cabut Suspen (+14 Hari)
+                </button>
             </div>
 
             <div class="p-3 rounded-xl bg-slate-900/50 border border-white/5 space-y-2">
@@ -3544,6 +3641,42 @@ body {
             </button>
         </div>
         <form id="formMyProfile" onsubmit="handleSaveMyProfile(event)" class="flex-1 overflow-y-auto custom-scrollbar p-5 space-y-3.5 text-xs">
+            <!-- UBAH FOTO PROFIL (REV-10.23) -->
+            <div class="p-3.5 rounded-xl bg-slate-900/70 border border-emerald-500/20 flex flex-col sm:flex-row items-center gap-3.5">
+                <div id="myProfAvatarPreview" class="w-16 h-16 rounded-full bg-emerald-500/20 border-2 border-emerald-500/40 flex items-center justify-center text-emerald-300 font-black text-xl overflow-hidden shrink-0">
+                    U
+                </div>
+                <div class="flex-1 text-center sm:text-left space-y-1.5 min-w-0">
+                    <div class="text-xs font-bold text-white">Foto Profil Akun</div>
+                    <p class="text-[10px] text-slate-400">Gunakan foto terbaik Anda untuk ditampilkan di sidebar studio.</p>
+                    <div class="flex flex-wrap items-center justify-center sm:justify-start gap-2 pt-0.5">
+                        <label class="cursor-pointer px-3 py-1.5 rounded-lg bg-emerald-600 hover:bg-emerald-500 text-white text-[11px] font-bold inline-flex items-center gap-1.5 transition-all">
+                            <i class="fa-solid fa-camera"></i>
+                            <span id="lblBtnUploadMyProfAvatar">Ganti Foto Profil</span>
+                            <input type="file" id="myProfAvatarFileInput" accept="image/*" class="hidden" onchange="handleMyProfileAvatarUpload(this)">
+                        </label>
+                        <button type="button" onclick="openKycCameraForProfileAvatar()" class="px-3 py-1.5 rounded-lg bg-white/5 hover:bg-white/10 text-emerald-300 border border-emerald-500/25 text-[11px] font-semibold inline-flex items-center gap-1.5 cursor-pointer">
+                            <i class="fa-solid fa-video"></i> Jepret Kamera
+                        </button>
+                    </div>
+                    <input type="hidden" id="myProfFotoProfilUrl">
+                </div>
+            </div>
+
+            <!-- KARTU STATUS VERIFIKASI KYC WAJIB (REV-10.23) -->
+            <div id="myProfKycCard" class="p-3.5 rounded-xl bg-amber-500/10 border border-amber-500/30 flex flex-col sm:flex-row sm:items-center justify-between gap-2.5">
+                <div class="space-y-0.5">
+                    <div class="flex items-center gap-2">
+                        <span class="text-xs font-bold text-white"><i class="fa-solid fa-id-card-clip text-amber-400 mr-1"></i> Verifikasi Identitas (KYC)</span>
+                        <span id="myProfKycBadge" class="text-[10px] font-bold px-2 py-0.5 rounded-full bg-amber-500/20 text-amber-300 border border-amber-500/30">Belum Lengkap</span>
+                    </div>
+                    <p id="myProfKycDesc" class="text-[10px] text-slate-300">Wajib Foto Wajah, Foto KTP (scan alamat), &amp; Selfie memegang KTP dalam 30 hari.</p>
+                </div>
+                <button type="button" onclick="closeModalMyProfile(); openModalKycVerification();" class="px-3 py-1.5 rounded-lg bg-amber-500 hover:bg-amber-400 text-black text-[11px] font-extrabold shrink-0 cursor-pointer">
+                    <i class="fa-solid fa-camera mr-1"></i> Buka KYC
+                </button>
+            </div>
+
             <div class="grid grid-cols-1 sm:grid-cols-2 gap-3">
                 <div class="space-y-1">
                     <label class="text-gray-300 font-semibold">Nama Lengkap <span class="text-rose-400">*</span></label>
@@ -3748,6 +3881,222 @@ body {
         <div class="px-5 py-3 border-t border-white/10 bg-[#07120b] flex justify-end shrink-0">
             <button type="button" onclick="closeStaffWorkTimelineModal()" class="px-4 py-2 rounded-xl bg-white/10 hover:bg-white/15 text-white text-xs font-semibold">Tutup</button>
         </div>
+    </div>
+</div>
+
+<!-- 25. MODAL VERIFIKASI IDENTITAS TAHAP 2 / KYC WAJIB KAMERA (REV-10.23) -->
+<div id="modalKycVerification" class="app-modal hidden">
+    <div class="glass-card w-full max-w-2xl max-h-[92vh] flex flex-col p-0 overflow-hidden shadow-2xl border border-amber-500/40">
+        <div class="px-5 py-4 border-b border-white/10 flex items-center justify-between shrink-0 bg-[#07120b]">
+            <div>
+                <h3 class="text-sm font-bold text-white flex items-center gap-2">
+                    <i class="fa-solid fa-shield-halved text-amber-400"></i> Verifikasi Identitas Wajib (KYC Studio)
+                </h3>
+                <p id="kycModalSubtitle" class="text-[11px] text-amber-300">Wajib diambil langsung lewat Kamera dalam tenggang waktu 30 hari.</p>
+            </div>
+            <button type="button" onclick="closeModal('modalKycVerification')" class="w-8 h-8 rounded-lg bg-white/5 hover:bg-white/10 text-gray-400 hover:text-white flex items-center justify-center cursor-pointer">
+                <i class="fa-solid fa-xmark text-sm"></i>
+            </button>
+        </div>
+
+        <form id="formKycVerification" onsubmit="handleSubmitKycVerification(event)" class="flex-1 overflow-y-auto custom-scrollbar p-5 space-y-4 text-xs">
+            <div id="kycModalStatusBanner" class="p-3 rounded-xl bg-amber-500/10 border border-amber-500/30 text-[11px] text-slate-200 flex items-center justify-between gap-2">
+                <span id="kycModalDeadlineInfo">Batas waktu verifikasi identitas 30 hari.</span>
+                <span id="kycModalBadge" class="px-2 py-0.5 rounded-full bg-amber-500/20 text-amber-300 font-bold text-[10px]">Belum Lengkap</span>
+            </div>
+
+            <!-- 3 TAHAP FOTO KAMERA LANGSUNG -->
+            <div class="grid grid-cols-1 md:grid-cols-3 gap-3">
+                <!-- 1. FOTO WAJAH -->
+                <div class="p-3 rounded-xl bg-slate-900/70 border border-emerald-500/20 flex flex-col justify-between gap-2.5">
+                    <div class="space-y-1.5">
+                        <div class="flex items-center justify-between">
+                            <span class="font-bold text-white text-[11px]">1. Foto Wajah (Selfie) <span class="text-rose-400">*</span></span>
+                            <span id="kycStatusWajah" class="text-[10px] text-slate-400">Belum ada</span>
+                        </div>
+                        <div id="kycPreviewWajahBox" class="h-28 rounded-lg bg-black/50 border border-white/10 flex items-center justify-center overflow-hidden text-slate-500 text-[10px]">
+                            <div class="text-center space-y-1">
+                                <i class="fa-solid fa-user-circle text-2xl text-slate-600"></i>
+                                <p>Pratinjau Wajah</p>
+                            </div>
+                        </div>
+                    </div>
+                    <button type="button" id="btnCaptureKycWajah" onclick="openLiveCameraCapture('wajah')" class="w-full py-2 px-3 rounded-lg bg-emerald-600 hover:bg-emerald-500 text-white font-bold text-[11px] flex items-center justify-center gap-1.5 cursor-pointer">
+                        <i class="fa-solid fa-camera"></i> Ambil Foto Wajah
+                    </button>
+                    <input type="hidden" id="kycFotoWajahUrl">
+                </div>
+
+                <!-- 2. FOTO KTP -->
+                <div class="p-3 rounded-xl bg-slate-900/70 border border-emerald-500/20 flex flex-col justify-between gap-2.5">
+                    <div class="space-y-1.5">
+                        <div class="flex items-center justify-between">
+                            <span class="font-bold text-white text-[11px]">2. Foto e-KTP Asli <span class="text-rose-400">*</span></span>
+                            <span id="kycStatusKtp" class="text-[10px] text-slate-400">Belum ada</span>
+                        </div>
+                        <div id="kycPreviewKtpBox" class="h-28 rounded-lg bg-black/50 border border-white/10 flex items-center justify-center overflow-hidden text-slate-500 text-[10px]">
+                            <div class="text-center space-y-1">
+                                <i class="fa-regular fa-id-card text-2xl text-slate-600"></i>
+                                <p>Pratinjau e-KTP</p>
+                            </div>
+                        </div>
+                    </div>
+                    <div class="space-y-1.5">
+                        <button type="button" id="btnCaptureKycKtp" onclick="openLiveCameraCapture('ktp')" class="w-full py-2 px-3 rounded-lg bg-emerald-600 hover:bg-emerald-500 text-white font-bold text-[11px] flex items-center justify-center gap-1.5 cursor-pointer">
+                            <i class="fa-solid fa-camera"></i> Ambil Foto KTP
+                        </button>
+                        <button type="button" id="btnScanKtpGemini" onclick="triggerScanLastCapturedKtp()" class="hidden w-full py-1.5 px-2.5 rounded-lg bg-amber-500/20 hover:bg-amber-500/30 text-amber-300 border border-amber-500/35 font-bold text-[10px] flex items-center justify-center gap-1 cursor-pointer">
+                            <i class="fa-solid fa-wand-magic-sparkles"></i> Scan Ulang Alamat AI
+                        </button>
+                    </div>
+                    <input type="hidden" id="kycFotoKtpUrl">
+                </div>
+
+                <!-- 3. FOTO WAJAH + KTP -->
+                <div class="p-3 rounded-xl bg-slate-900/70 border border-emerald-500/20 flex flex-col justify-between gap-2.5">
+                    <div class="space-y-1.5">
+                        <div class="flex items-center justify-between">
+                            <span class="font-bold text-white text-[11px]">3. Selfie Pegang KTP <span class="text-rose-400">*</span></span>
+                            <span id="kycStatusSelfieKtp" class="text-[10px] text-slate-400">Belum ada</span>
+                        </div>
+                        <div id="kycPreviewSelfieKtpBox" class="h-28 rounded-lg bg-black/50 border border-white/10 flex items-center justify-center overflow-hidden text-slate-500 text-[10px]">
+                            <div class="text-center space-y-1">
+                                <i class="fa-solid fa-address-card text-2xl text-slate-600"></i>
+                                <p>Wajah + KTP Jelas</p>
+                            </div>
+                        </div>
+                    </div>
+                    <button type="button" id="btnCaptureKycSelfieKtp" onclick="openLiveCameraCapture('selfie_ktp')" class="w-full py-2 px-3 rounded-lg bg-emerald-600 hover:bg-emerald-500 text-white font-bold text-[11px] flex items-center justify-center gap-1.5 cursor-pointer">
+                        <i class="fa-solid fa-camera"></i> Selfie + Pegang KTP
+                    </button>
+                    <input type="hidden" id="kycFotoSelfieKtpUrl">
+                </div>
+            </div>
+
+            <!-- HASIL SCAN & INPUT ALAMAT KTP -->
+            <div class="p-4 rounded-xl bg-slate-950/60 border border-emerald-500/25 space-y-3">
+                <div class="flex items-center justify-between gap-2">
+                    <span class="text-xs font-bold text-emerald-400 flex items-center gap-1.5">
+                        <i class="fa-solid fa-location-dot"></i> Data Alamat Lengkap (Auto-Scan KTP AI)
+                    </span>
+                    <span id="kycOcrStatusMsg" class="text-[10px] text-slate-400">Otomatis terisi saat foto KTP diambil</span>
+                </div>
+                <div class="space-y-1">
+                    <label class="text-gray-300 font-semibold">Alamat Lengkap Sesuai KTP <span class="text-rose-400">*</span></label>
+                    <textarea id="kycAlamat" rows="3" required minlength="8" placeholder="Ambil Foto KTP untuk scan otomatis, atau periksa/lengkapi alamat Jalan, RT/RW, Kel/Desa, Kecamatan, Kota..." class="glass-input w-full px-3 py-2 rounded-xl text-xs bg-slate-900/90 text-white"></textarea>
+                </div>
+                <div class="space-y-1">
+                    <label class="text-gray-300 font-semibold">NIK e-KTP <span class="text-[10px] text-slate-400 font-normal">(Terisi otomatis jika terbaca AI)</span></label>
+                    <input type="text" id="kycNik" maxlength="20" placeholder="16 digit NIK" class="glass-input w-full px-3 py-2 rounded-xl text-xs bg-slate-900/90 text-white font-mono">
+                </div>
+            </div>
+
+            <div class="pt-3 border-t border-white/10 flex items-center justify-end gap-2">
+                <button type="button" onclick="closeModal('modalKycVerification')" class="px-4 py-2 rounded-xl bg-white/5 hover:bg-white/10 text-gray-400 font-semibold">Tutup</button>
+                <button type="submit" id="btnSubmitKycVerification" class="px-5 py-2.5 rounded-xl btn-neon font-bold flex items-center gap-2 shadow-lg">
+                    <i class="fa-solid fa-shield-check"></i>
+                    <span>Simpan &amp; Selesaikan Verifikasi</span>
+                </button>
+            </div>
+        </form>
+    </div>
+</div>
+
+<!-- 26. MODAL KAMERA LANGSUNG WEBRTC (KHUSUS KYC & PROFIL - REV-10.23) -->
+<div id="modalCameraCapture" class="app-modal hidden">
+    <div class="glass-card w-full max-w-lg max-h-[92vh] flex flex-col p-0 overflow-hidden shadow-2xl border border-emerald-500/40 bg-[#060d09]">
+        <div class="px-4 py-3 border-b border-white/10 flex items-center justify-between bg-[#07120b] shrink-0">
+            <div>
+                <h3 id="cameraModalTitle" class="text-sm font-bold text-white flex items-center gap-2">
+                    <i class="fa-solid fa-camera text-emerald-400"></i> Kamera Langsung
+                </h3>
+                <p id="cameraModalHint" class="text-[10px] text-slate-400">Posisikan wajah / e-KTP tepat di dalam bingkai panduan</p>
+            </div>
+            <button type="button" onclick="closeLiveCameraModal()" class="w-8 h-8 rounded-lg bg-white/5 hover:bg-white/10 text-gray-400 hover:text-white flex items-center justify-center cursor-pointer">
+                <i class="fa-solid fa-xmark text-sm"></i>
+            </button>
+        </div>
+
+        <div class="p-4 space-y-3 overflow-y-auto custom-scrollbar">
+            <!-- Viewfinder Area -->
+            <div class="relative w-full aspect-[4/3] rounded-xl overflow-hidden bg-black border border-emerald-500/30 flex items-center justify-center">
+                <video id="kycCameraVideo" autoplay playsinline muted class="w-full h-full object-cover"></video>
+                <canvas id="kycCameraCanvas" class="hidden w-full h-full object-contain bg-black"></canvas>
+
+                <!-- Frame Overlay Guide -->
+                <div id="cameraGuideOverlay" class="pointer-events-none absolute inset-0 flex items-center justify-center">
+                    <div id="cameraGuideBox" class="w-64 h-40 rounded-xl border-2 border-dashed border-emerald-400/80 shadow-[0_0_0_9999px_rgba(0,0,0,0.4)]"></div>
+                </div>
+
+                <!-- Fallback Notice if getUserMedia blocked/denied -->
+                <div id="cameraFallbackBox" class="hidden absolute inset-0 bg-slate-950/95 p-5 flex flex-col items-center justify-center text-center gap-3">
+                    <i class="fa-solid fa-video-slash text-3xl text-amber-400"></i>
+                    <p id="cameraFallbackReason" class="text-xs text-slate-300 leading-relaxed">
+                        Akses kamera langsung browser tidak tersedia atau ditolak izinnya. Gunakan tombol Kamera Sistem di bawah ini.
+                    </p>
+                    <label class="cursor-pointer px-4 py-2.5 rounded-xl btn-neon text-xs font-bold inline-flex items-center gap-2 shadow-lg">
+                        <i class="fa-solid fa-camera"></i>
+                        <span>Buka Kamera Sistem HP</span>
+                        <input type="file" id="kycNativeCameraInput" accept="image/*" capture="environment" class="hidden" onchange="handleNativeCameraCapture(this)">
+                    </label>
+                </div>
+            </div>
+
+            <!-- Capture Controls -->
+            <div id="cameraLiveControls" class="flex items-center justify-between gap-2">
+                <button type="button" onclick="toggleLiveCameraFacing()" class="px-3.5 py-2.5 rounded-xl bg-white/5 hover:bg-white/10 text-slate-200 border border-white/10 text-xs font-semibold flex items-center gap-1.5 cursor-pointer">
+                    <i class="fa-solid fa-camera-rotate"></i> Putar Kamera
+                </button>
+                <button type="button" id="btnSnapLivePhoto" onclick="snapLiveCameraFrame()" class="flex-1 py-2.5 px-4 rounded-xl btn-neon text-xs font-extrabold flex items-center justify-center gap-2 shadow-lg cursor-pointer">
+                    <i class="fa-solid fa-circle-dot"></i> Ambil Foto Sekarang
+                </button>
+            </div>
+
+            <!-- Confirm Captured Photo Controls -->
+            <div id="cameraConfirmControls" class="hidden flex items-center justify-between gap-2">
+                <button type="button" onclick="retakeLiveCameraFrame()" class="px-4 py-2.5 rounded-xl bg-white/10 hover:bg-white/15 text-white text-xs font-bold flex items-center gap-1.5 cursor-pointer">
+                    <i class="fa-solid fa-rotate-left"></i> Foto Ulang
+                </button>
+                <button type="button" id="btnConfirmLivePhoto" onclick="confirmAndUploadCameraPhoto()" class="flex-1 py-2.5 px-4 rounded-xl btn-neon text-xs font-extrabold flex items-center justify-center gap-2 shadow-lg cursor-pointer">
+                    <i class="fa-solid fa-cloud-arrow-up"></i> Pakai &amp; Unggah Foto Ini
+                </button>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- 27. MODAL PENGATURAN KEAMANAN & GEMINI OCR OWNER (KHUSUS SUPER ADMIN - REV-10.23) -->
+<div id="modalOwnerSecurityConfig" class="app-modal hidden">
+    <div class="glass-card w-full max-w-md max-h-[90vh] flex flex-col p-0 overflow-hidden shadow-2xl border border-amber-500/40">
+        <div class="px-5 py-4 border-b border-white/10 flex items-center justify-between bg-[#07120b] shrink-0">
+            <h3 class="text-sm font-bold text-white flex items-center gap-2">
+                <i class="fa-solid fa-shield-halved text-amber-400"></i> Pengaturan Keamanan &amp; OCR KTP
+            </h3>
+            <button type="button" onclick="closeModal('modalOwnerSecurityConfig')" class="w-8 h-8 rounded-lg bg-white/5 hover:bg-white/10 text-gray-400 hover:text-white flex items-center justify-center cursor-pointer">
+                <i class="fa-solid fa-xmark text-sm"></i>
+            </button>
+        </div>
+        <form id="formOwnerSecurityConfig" onsubmit="handleSaveOwnerSecurityConfig(event)" class="p-5 space-y-4 text-xs overflow-y-auto custom-scrollbar">
+            <div class="space-y-1">
+                <label class="text-gray-300 font-semibold">Nomor WhatsApp Resmi Owner (Layar Suspen)</label>
+                <input type="text" id="ownerSecWaInput" placeholder="0812xxxxxxxx" class="glass-input w-full px-3 py-2 rounded-xl text-xs bg-slate-900/90 text-white font-mono">
+                <p class="text-[10px] text-slate-400">Ditampilkan di tombol Hubungi Owner bila akun pengguna terkena suspen KYC 30 hari.</p>
+            </div>
+            <div class="space-y-1">
+                <div class="flex items-center justify-between">
+                    <label class="text-gray-300 font-semibold">Gemini Vision API Key (Auto-Scan KTP)</label>
+                    <span id="ownerSecGeminiStatus" class="text-[10px] text-slate-400">Belum diatur</span>
+                </div>
+                <input type="password" id="ownerSecGeminiKeyInput" placeholder="AIzaSy... (kosongkan jika tidak ingin mengubah)" class="glass-input w-full px-3 py-2 rounded-xl text-xs bg-slate-900/90 text-white font-mono">
+                <p class="text-[10px] text-slate-400">Disimpan aman di <code>ScriptProperties</code> Google Apps Script, tidak pernah dikirim ke browser.</p>
+            </div>
+            <div class="pt-3 border-t border-white/10 flex justify-end gap-2">
+                <button type="button" onclick="closeModal('modalOwnerSecurityConfig')" class="px-4 py-2 rounded-xl bg-white/5 hover:bg-white/10 text-gray-400 font-semibold">Tutup</button>
+                <button type="submit" id="btnSaveOwnerSecConfig" class="px-5 py-2 rounded-xl btn-neon font-bold flex items-center gap-1.5 shadow-lg">
+                    <i class="fa-solid fa-floppy-disk"></i> Simpan Pengaturan
+                </button>
+            </div>
+        </form>
     </div>
 </div>
 
@@ -4245,106 +4594,170 @@ var regOtpCooldownTimer = null;
 var regOtpCooldownSeconds = 0;
 
 // ===============================================================================
-// GOOGLE SIGN-IN IDENTITY SERVICES (GIS) CONTROLLER
+// LOGIN KEAMANAN OTP 48 JAM & SUSPEN KYC CONTROLLER (REV-10.23)
 // ===============================================================================
-var GOOGLE_CLIENT_ID = window.DOGO_GOOGLE_CLIENT_ID || '224443808801-cc7qfebil8jipnt4p1806vau8rabv302.apps.googleusercontent.com';
-var gisInitAttempts = 0;
+var loginPendingEmail = '';
+var loginOtpCooldownTimer = null;
+var loginOtpCooldownSeconds = 0;
 
-function initGoogleSignIn() {
-  if (isGasEnv) return; // Google Identity Services iframe origin berjalan khusus di Vercel/web mandiri
-  if (typeof google === 'undefined' || !google.accounts || !google.accounts.id) {
-    gisInitAttempts++;
-    if (gisInitAttempts <= 20) {
-      setTimeout(initGoogleSignIn, 500);
-    } else {
-      var fallbackNotice = '<p class="text-[10px] text-slate-500 text-center">Tombol Google Sign-In tidak tersedia saat offline / diblokir ekstensi.</p>';
-      var bL = document.getElementById('googleSignInBtnLogin');
-      var bR = document.getElementById('googleSignInBtnRegister');
-      if (bL && !bL.innerHTML) bL.innerHTML = fallbackNotice;
-      if (bR && !bR.innerHTML) bR.innerHTML = fallbackNotice;
-    }
-    return;
+function showLoginOtpStep(email, msg) {
+  loginPendingEmail = email || '';
+  var fLogin = document.getElementById('formLogin');
+  var sOtp = document.getElementById('loginStepOtp');
+  var sSusp = document.getElementById('loginSuspendedBox');
+  if (fLogin) fLogin.classList.add('hidden');
+  if (sSusp) sSusp.classList.add('hidden');
+  if (sOtp) sOtp.classList.remove('hidden');
+
+  var targetEl = document.getElementById('loginOtpTargetEmail');
+  if (targetEl) targetEl.innerText = loginPendingEmail || '-';
+  var otpInp = document.getElementById('loginOtpCode');
+  if (otpInp) {
+    otpInp.value = '';
+    setTimeout(function() { otpInp.focus(); }, 200);
   }
+  setInlineAuthError('loginOtpErrorMsg', msg || '', true);
+  startLoginOtpResendCooldown(60);
+}
 
-  try {
-    google.accounts.id.initialize({
-      client_id: GOOGLE_CLIENT_ID,
-      callback: handleGoogleSignInCallback,
-      auto_select: false,
-      cancel_on_tap_outside: true
-    });
+function backToPasswordLogin() {
+  if (loginOtpCooldownTimer) {
+    clearInterval(loginOtpCooldownTimer);
+    loginOtpCooldownTimer = null;
+  }
+  loginOtpCooldownSeconds = 0;
+  var fLogin = document.getElementById('formLogin');
+  var sOtp = document.getElementById('loginStepOtp');
+  var sSusp = document.getElementById('loginSuspendedBox');
+  if (sOtp) sOtp.classList.add('hidden');
+  if (sSusp) sSusp.classList.add('hidden');
+  if (fLogin) fLogin.classList.remove('hidden');
+  setInlineAuthError('loginOtpErrorMsg', '');
+  setInlineAuthError('loginErrorMsg', '');
+}
 
-    var btnLogin = document.getElementById('googleSignInBtnLogin');
-    if (btnLogin) {
-      var loginW = Math.min(320, Math.max(220, btnLogin.clientWidth || 260));
-      google.accounts.id.renderButton(btnLogin, {
-        theme: 'filled_black',
-        size: 'large',
-        shape: 'pill',
-        text: 'signin_with',
-        logo_alignment: 'left',
-        width: loginW
+function showLoginSuspendedBox(msg, ownerWaUrl) {
+  var fLogin = document.getElementById('formLogin');
+  var sOtp = document.getElementById('loginStepOtp');
+  var sSusp = document.getElementById('loginSuspendedBox');
+  if (fLogin) fLogin.classList.add('hidden');
+  if (sOtp) sOtp.classList.add('hidden');
+  if (sSusp) sSusp.classList.remove('hidden');
+
+  var pEl = document.getElementById('loginSuspendedMessage');
+  if (pEl && msg) pEl.innerText = msg;
+
+  var waBtn = document.getElementById('btnSuspendedContactOwner');
+  if (waBtn) {
+    var safeUrl = sanitizeHttpUrl(ownerWaUrl || '');
+    if (safeUrl) {
+      waBtn.href = safeUrl;
+      waBtn.classList.remove('hidden');
+    } else {
+      waBtn.classList.add('hidden');
+      callBackend('getPublicOwnerContact', [], function(res) {
+        if (res && res.success && res.waUrl && sanitizeHttpUrl(res.waUrl)) {
+          waBtn.href = sanitizeHttpUrl(res.waUrl);
+          waBtn.classList.remove('hidden');
+        }
       });
     }
-
-    var btnReg = document.getElementById('googleSignInBtnRegister');
-    if (btnReg) {
-      var regW = Math.min(320, Math.max(220, btnReg.clientWidth || 260));
-      google.accounts.id.renderButton(btnReg, {
-        theme: 'filled_black',
-        size: 'large',
-        shape: 'pill',
-        text: 'signup_with',
-        logo_alignment: 'left',
-        width: regW
-      });
-    }
-  } catch (err) {
-    console.warn('Notice GIS init:', err.message);
   }
 }
 
-function handleGoogleSignInCallback(response) {
-  if (!response || !response.credential) {
-    showToast('Gagal memverifikasi akun Google', 'error');
+function resetLoginSuspendedState() {
+  backToPasswordLogin();
+}
+
+function startLoginOtpResendCooldown(seconds) {
+  if (loginOtpCooldownTimer) clearInterval(loginOtpCooldownTimer);
+  loginOtpCooldownSeconds = seconds || 60;
+  var btn = document.getElementById('btnResendLoginOtp');
+  if (btn) {
+    btn.disabled = true;
+    btn.innerText = 'Kirim Ulang (' + loginOtpCooldownSeconds + 's)';
+  }
+  loginOtpCooldownTimer = setInterval(function() {
+    loginOtpCooldownSeconds--;
+    if (loginOtpCooldownSeconds <= 0) {
+      clearInterval(loginOtpCooldownTimer);
+      loginOtpCooldownTimer = null;
+      if (btn) {
+        btn.disabled = false;
+        btn.innerText = 'Kirim Ulang OTP';
+      }
+    } else if (btn) {
+      btn.innerText = 'Kirim Ulang (' + loginOtpCooldownSeconds + 's)';
+    }
+  }, 1000);
+}
+
+function handleVerifyLoginOtp() {
+  var otpInp = document.getElementById('loginOtpCode');
+  var otp = otpInp ? otpInp.value.trim() : '';
+  if (!loginPendingEmail) {
+    showToast('Sesi email login tidak ditemukan. Silakan ulangi.', 'warning');
+    backToPasswordLogin();
     return;
   }
-  setInlineAuthError('loginErrorMsg', 'Memverifikasi akun Google ke server...', true);
-  showToast('Memverifikasi akun Google ke server...', 'info');
-  callBackend('loginWithGoogle', [{ credential: response.credential }], function(res) {
-    if (res && res.success && res.userSession && res.userSession.token) {
-      setInlineAuthError('loginErrorMsg', '');
-      currentUserSession = res.userSession;
+  if (!otp || otp.length !== 6) {
+    setInlineAuthError('loginOtpErrorMsg', 'Masukkan 6 digit kode OTP dari email Anda.', false);
+    if (otpInp) otpInp.focus();
+    return;
+  }
+  var btn = document.getElementById('btnVerifyLoginOtp');
+  if (btn) { btn.disabled = true; btn.innerText = 'Memverifikasi OTP...'; }
+
+  callBackend('verifyLoginOtp', [{ email: loginPendingEmail, otp: otp }], function(res) {
+    if (btn) { btn.disabled = false; btn.innerHTML = '<i class="fa-solid fa-check-double"></i> <span>Verifikasi OTP &amp; Masuk</span>'; }
+    if (res && res.success) {
+      currentUserSession = res.userSession || res.user;
+      if (!currentUserSession || !currentUserSession.token) {
+        setInlineAuthError('loginOtpErrorMsg', 'Gagal membuat sesi login.', false);
+        return;
+      }
+      if (loginOtpCooldownTimer) { clearInterval(loginOtpCooldownTimer); loginOtpCooldownTimer = null; }
       localStorage.setItem(SESSION_KEY, JSON.stringify(currentUserSession));
+      backToPasswordLogin();
       closeModal('modalLogin');
-      closeModal('modalRegister');
       var authWrapper = document.getElementById('appAuthWrapper');
       if (authWrapper) authWrapper.classList.remove('hidden');
       applyUserSessionUI();
+      showToast('Verifikasi OTP berhasil! Selamat datang, ' + (currentUserSession.nama || 'Operator'), 'success');
       var startView = getFirstAllowedView();
-      if (startView) {
-        switchView(startView, true);
-      } else {
-        showToast('Akun Anda belum memiliki izin akses modul apapun. Hubungi Super Admin.', 'warning');
-      }
-      showToast('Login berhasil! Selamat datang, ' + (currentUserSession.nama || 'Pengguna'), 'success');
-    } else if (res && res.pendingApproval) {
-      // Tetap pertahankan modalLogin terbuka agar tidak terjadi layar hitam kosong!
-      closeModal('modalRegister');
-      openModal('modalLogin');
-      var pMsg = res.message || 'Pendaftaran via akun Google berhasil! Menunggu persetujuan Super Admin.';
-      setInlineAuthError('loginErrorMsg', pMsg, true);
-      showToast(pMsg, 'info');
+      if (startView) switchView(startView, true);
+    } else if (res && res.suspended) {
+      showLoginSuspendedBox(res.message, res.ownerWaUrl);
     } else {
-      closeModal('modalRegister');
-      openModal('modalLogin');
-      var eMsg = (res && res.message) || 'Gagal masuk dengan akun Google';
-      setInlineAuthError('loginErrorMsg', eMsg, false);
-      showToast(eMsg, 'warning');
+      var msg = (res && res.message) || 'Kode OTP salah.';
+      setInlineAuthError('loginOtpErrorMsg', msg, false);
+      showToast(msg, 'error');
     }
   }, function(err) {
-    setInlineAuthError('loginErrorMsg', 'Error koneksi Google login: ' + err.message, false);
-    showToast('Error koneksi Google login: ' + err.message, 'error');
+    if (btn) { btn.disabled = false; btn.innerHTML = '<i class="fa-solid fa-check-double"></i> <span>Verifikasi OTP &amp; Masuk</span>'; }
+    setInlineAuthError('loginOtpErrorMsg', 'Koneksi gagal: ' + ((err && err.message) || err), false);
+    showToast('Koneksi gagal: ' + ((err && err.message) || err), 'error');
+  });
+}
+
+function handleResendLoginOtp() {
+  if (loginOtpCooldownSeconds > 0 || !loginPendingEmail) return;
+  var btn = document.getElementById('btnResendLoginOtp');
+  if (btn) { btn.disabled = true; btn.innerText = 'Mengirim...'; }
+  callBackend('resendLoginOtp', [{ email: loginPendingEmail }], function(res) {
+    if (res && res.success) {
+      setInlineAuthError('loginOtpErrorMsg', res.message || 'Kode OTP baru telah dikirim.', true);
+      showToast('Kode OTP baru terkirim!', 'success');
+      startLoginOtpResendCooldown(60);
+    } else {
+      if (btn) { btn.disabled = false; btn.innerText = 'Kirim Ulang OTP'; }
+      var msg = (res && res.message) || 'Gagal mengirim ulang OTP.';
+      setInlineAuthError('loginOtpErrorMsg', msg, false);
+      showToast(msg, 'error');
+    }
+  }, function(err) {
+    if (btn) { btn.disabled = false; btn.innerText = 'Kirim Ulang OTP'; }
+    showToast('Kesalahan jaringan: ' + ((err && err.message) || err), 'error');
   });
 }
 
@@ -4634,8 +5047,12 @@ function initApp() {
   updateDigitalClock();
   setInterval(updateDigitalClock, 1000);
 
-  // Initialize Official Google Sign-In
-  initGoogleSignIn();
+  // Perbarui timestamp Last_Active_At secara periodik selama aplikasi dibuka
+  setInterval(function() {
+    if (currentUserSession && currentUserSession.token) {
+      syncLiveUserSession();
+    }
+  }, 10 * 60 * 1000);
 
   // Register PWA Service Worker only on standalone hosting (not inside Google Apps Script iframe)
   if (!isGasEnv && window.location && window.location.hostname.indexOf('google.com') === -1 && 'serviceWorker' in navigator) {
@@ -4691,8 +5108,11 @@ function initApp() {
             clearAllClientMemoryCaches();
             hideInitialSplash();
             openModal('modalLogin');
-            if (res && res.message) {
-              showToast(res.message, 'warning');
+            if (res && res.suspended) {
+              showLoginSuspendedBox(res.message, res.ownerWaUrl);
+            } else {
+              backToPasswordLogin();
+              if (res && res.message) showToast(res.message, 'warning');
             }
           }
         }, function(err) {
@@ -4892,6 +5312,8 @@ function applyUserSessionUI() {
   if (usersScopeBadge) {
     usersScopeBadge.innerText = isSuperAdmin() ? 'Super Admin & Panel' : 'Admin Panel';
   }
+  toggleElVisible('btnOwnerSecurityConfig', isSuperAdmin());
+  if (typeof updateKycBannerUI === 'function') updateKycBannerUI();
 }
 
 /**
@@ -5086,13 +5508,19 @@ function refreshCurrentViewData() {
 // Universal Backend Bridge (dengan interceptor authExpired global)
 function callBackend(fnName, args, onSuccess, onFailure) {
   var wrappedSuccess = function(res) {
-    if (fnName !== 'loginUser' && fnName !== 'loginWithGoogle' && fnName !== 'logoutUser' && res && res.authExpired === true) {
+    var skipAuthRedirect = (fnName === 'loginUser' || fnName === 'verifyLoginOtp' || fnName === 'resendLoginOtp' || fnName === 'getPublicOwnerContact' || fnName === 'logoutUser');
+    if (!skipAuthRedirect && res && res.authExpired === true) {
       localStorage.removeItem(SESSION_KEY);
       currentUserSession = null;
       clearAllClientMemoryCaches();
       var authWrapper = document.getElementById('appAuthWrapper');
       if (authWrapper) authWrapper.classList.add('hidden');
       openModal('modalLogin');
+      if (res.suspended) {
+        showLoginSuspendedBox(res.message, res.ownerWaUrl);
+      } else {
+        backToPasswordLogin();
+      }
       showToast(res.message || 'Sesi telah berakhir. Silakan login kembali.', 'warning');
       return;
     }
@@ -8464,6 +8892,7 @@ function filterUsersByStatus() {
     if (filter === 'pending') return st === 'pending' || st === 'pending approval';
     if (filter === 'aktif') return st === 'aktif';
     if (filter === 'dibekukan') return st === 'dibekukan' || st === 'frozen' || st === 'locked';
+    if (filter === 'suspended') return st === 'suspended' || st === 'suspen';
     return true;
   });
   renderUserTable(filtered);
@@ -8500,13 +8929,26 @@ function renderUserTable(items) {
     var statusBadge = '';
     var isPending = (stNorm === 'pending' || stNorm === 'pending approval');
     var isFrozen = (stNorm === 'dibekukan' || stNorm === 'frozen' || stNorm === 'locked');
+    var isSuspended = (stNorm === 'suspended' || stNorm === 'suspen');
 
     if (isPending) {
       statusBadge = renderStatusDotBadge('Pending Approval', 'amber');
+    } else if (isSuspended) {
+      statusBadge = renderStatusDotBadge('Suspen (KYC)', 'rose');
     } else if (isFrozen) {
       statusBadge = renderStatusDotBadge('Dibekukan (5x)', 'rose');
     } else {
       statusBadge = renderStatusDotBadge('Aktif', 'emerald');
+    }
+
+    var kycSmall = '';
+    if (!isTargetAdminRole(u.role)) {
+      if (u.kycComplete) {
+        kycSmall = '<div class="mt-1"><span class="px-1.5 py-0.5 rounded bg-emerald-500/10 text-emerald-400 border border-emerald-500/20 text-[9px] font-bold">KYC Lengkap</span></div>';
+      } else {
+        var kycLbl = (u.kycStatus || 'Belum Lengkap') + (u.kycDaysRemaining > 0 ? ' (' + u.kycDaysRemaining + 'h)' : '');
+        kycSmall = '<div class="mt-1"><span class="px-1.5 py-0.5 rounded bg-amber-500/15 text-amber-300 border border-amber-500/25 text-[9px] font-bold">' + escapeHtml(kycLbl) + '</span></div>';
+      }
     }
 
     var waClean = (u.noWa || '').replace(/[^0-9]/g, '');
@@ -8518,8 +8960,12 @@ function renderUserTable(items) {
     var ktpBtn = '<span class="text-slate-500 text-[10px]">-</span>';
     if (!allowKtp) {
       ktpBtn = '<span class="text-slate-500 text-[10px]">🔒 Terbatas</span>';
-    } else if (u.fotoKtpUrl) {
-      ktpBtn = '<button type="button" onclick="openUserKtpByIndex(' + idx + ')" class="px-2.5 py-1 rounded-lg bg-emerald-500/10 text-emerald-400 hover:bg-emerald-500/20 text-[10px] font-bold flex items-center gap-1 cursor-pointer"><i class="fa-regular fa-id-card"></i> KTP</button>';
+    } else if (u.fotoKtpUrl || u.fotoWajahUrl || u.fotoSelfieKtpUrl) {
+      var kBadges = [];
+      if (u.fotoKtpUrl) kBadges.push('<button type="button" onclick="openUserKtpByIndex(' + idx + ')" class="px-2 py-1 rounded-lg bg-emerald-500/10 text-emerald-400 hover:bg-emerald-500/20 text-[10px] font-bold inline-flex items-center gap-1 cursor-pointer" title="Lihat KTP"><i class="fa-regular fa-id-card"></i> KTP</button>');
+      if (u.fotoWajahUrl) kBadges.push('<button type="button" onclick="openUserKycDocByIndex(' + idx + ', \'wajah\')" class="px-2 py-1 rounded-lg bg-sky-500/10 text-sky-300 hover:bg-sky-500/20 text-[10px] font-bold inline-flex items-center gap-1 cursor-pointer" title="Lihat Foto Wajah"><i class="fa-solid fa-user"></i></button>');
+      if (u.fotoSelfieKtpUrl) kBadges.push('<button type="button" onclick="openUserKycDocByIndex(' + idx + ', \'selfie_ktp\')" class="px-2 py-1 rounded-lg bg-amber-500/10 text-amber-300 hover:bg-amber-500/20 text-[10px] font-bold inline-flex items-center gap-1 cursor-pointer" title="Lihat Selfie+KTP"><i class="fa-solid fa-address-card"></i></button>');
+      ktpBtn = '<div class="flex items-center gap-1">' + kBadges.join('') + '</div>';
     }
 
     var targetIsAdmin = isTargetAdminRole(u.role);
@@ -8533,6 +8979,8 @@ function renderUserTable(items) {
 
       if (isPending) {
         actionBtnsHtml += '<button type="button" onclick="approveUserByIndex(' + idx + ')" class="px-2 py-1 rounded-lg bg-emerald-500 text-black text-[10px] font-bold hover:bg-emerald-400 flex items-center gap-1 cursor-pointer" title="Setujui Pendaftaran"><i class="fa-solid fa-check text-xs"></i> Setujui</button>';
+      } else if (isSuspended && canSuper) {
+        actionBtnsHtml += '<button type="button" onclick="unsuspendUserByIndex(' + idx + ')" class="px-2 py-1 rounded-lg bg-rose-500 text-white text-[10px] font-bold hover:bg-rose-400 flex items-center gap-1 cursor-pointer" title="Cabut Suspen KYC (Owner)"><i class="fa-solid fa-unlock text-xs"></i> Cabut</button>';
       } else if (isFrozen) {
         actionBtnsHtml += '<button type="button" onclick="unfreezeUserByIndex(' + idx + ')" class="w-7 h-7 rounded-lg bg-amber-500/20 text-amber-400 hover:bg-amber-500/30 border border-amber-500/30 flex items-center justify-center transition-colors cursor-pointer" title="Buka Blokir (Unfreeze)"><i class="fa-solid fa-lock-open text-xs"></i></button>';
       }
@@ -8555,7 +9003,7 @@ function renderUserTable(items) {
     html += '  <td class="py-3 px-4 text-slate-300 max-w-xs truncate">' + escapeHtml(u.alamat || '-') + '</td>';
     html += '  <td class="py-3 px-4 text-slate-300 font-mono text-[11px]">' + escapeHtml(u.bank || '-') + '<br><span class="text-emerald-400 text-[10px]">' + escapeHtml(u.noRekening || '') + '</span></td>';
     html += '  <td class="py-3 px-4">' + ktpBtn + '</td>';
-    html += '  <td class="py-3 px-4">' + statusBadge + '</td>';
+    html += '  <td class="py-3 px-4">' + statusBadge + kycSmall + '</td>';
     html += '  <td class="py-3 px-4 text-center">' + permsColHtml + '</td>';
     html += '  <td class="py-3 px-4 text-center">' + actionBtnsHtml + '</td>';
     html += '</tr>';
@@ -8568,8 +9016,16 @@ function openUserKtpByIndex(idx) {
   var u = currentRenderedUsers[idx];
   if (u && u.fotoKtpUrl) openKtpPreviewModal(u.fotoKtpUrl, 'KTP ' + (u.nama || u.email || 'Pengguna'));
 }
+function openUserKycDocByIndex(idx, kind) {
+  var u = currentRenderedUsers[idx];
+  if (!u) return;
+  if (kind === 'wajah' && u.fotoWajahUrl) openKtpPreviewModal(u.fotoWajahUrl, 'Foto Wajah — ' + (u.nama || u.email));
+  else if (kind === 'selfie_ktp' && u.fotoSelfieKtpUrl) openKtpPreviewModal(u.fotoSelfieKtpUrl, 'Selfie Pegang KTP — ' + (u.nama || u.email));
+  else if (u.fotoKtpUrl) openKtpPreviewModal(u.fotoKtpUrl, 'Foto KTP — ' + (u.nama || u.email));
+}
 function approveUserByIndex(idx) { var u = currentRenderedUsers[idx]; if (u) approveUserAction(u.email, u.nama); }
 function unfreezeUserByIndex(idx) { var u = currentRenderedUsers[idx]; if (u) unfreezeUserAction(u.email, u.nama); }
+function unsuspendUserByIndex(idx) { var u = currentRenderedUsers[idx]; if (u) unsuspendUserAction(u.email, u.nama); }
 function deleteUserByIndex(idx) { var u = currentRenderedUsers[idx]; if (u) deleteUserAction(u.email, u.nama); }
 
 // Controller: Detail Profil Pengguna (Modal #modalDetailUser)
@@ -8577,8 +9033,16 @@ function openDetailUserByIndex(idx) {
   var u = currentRenderedUsers[idx];
   if (!u) return;
 
+  var initial = (u.nama || 'U').charAt(0).toUpperCase();
   var avatarEl = document.getElementById('detailUserAvatar');
-  if (avatarEl) avatarEl.innerText = (u.nama || 'U').charAt(0).toUpperCase();
+  if (avatarEl) {
+    var safeProf = sanitizeHttpUrl(u.fotoProfil || '');
+    if (safeProf) {
+      avatarEl.innerHTML = '<img src="' + escapeHtml(safeProf) + '" alt="' + escapeHtml(initial) + '" class="w-full h-full rounded-xl object-cover" onerror="this.parentNode.innerText=\'' + escapeHtml(initial) + '\';">';
+    } else {
+      avatarEl.innerText = initial;
+    }
+  }
   var namaEl = document.getElementById('detailUserNama');
   if (namaEl) namaEl.innerText = u.nama || '-';
   var emailEl = document.getElementById('detailUserEmail');
@@ -8600,13 +9064,16 @@ function openDetailUserByIndex(idx) {
   if (stEl) {
     var st = (u.status || 'Aktif').toLowerCase();
     if (st === 'pending' || st === 'pending approval') {
-      stEl.innerText = '🟡 Pending';
+      stEl.innerText = 'Pending';
       stEl.className = 'text-[10px] font-bold px-2 py-0.5 rounded-full bg-amber-500/20 text-amber-400 border border-amber-500/30';
+    } else if (st === 'suspended' || st === 'suspen') {
+      stEl.innerText = 'Suspen KYC';
+      stEl.className = 'text-[10px] font-bold px-2 py-0.5 rounded-full bg-rose-500/20 text-rose-400 border border-rose-500/30';
     } else if (st === 'dibekukan' || st === 'frozen') {
-      stEl.innerText = '🔴 Dibekukan';
+      stEl.innerText = 'Dibekukan';
       stEl.className = 'text-[10px] font-bold px-2 py-0.5 rounded-full bg-rose-500/20 text-rose-400 border border-rose-500/30';
     } else {
-      stEl.innerText = '🟢 Aktif';
+      stEl.innerText = 'Aktif';
       stEl.className = 'text-[10px] font-bold px-2 py-0.5 rounded-full bg-emerald-500/20 text-emerald-400 border border-emerald-500/30';
     }
   }
@@ -8637,9 +9104,10 @@ function openDetailUserByIndex(idx) {
     }
   }
 
+  var canKtpView = hasSensitivePermission('viewKtp');
   var ktpContainer = document.getElementById('detailUserKtpContainer');
   if (ktpContainer) {
-    if (!hasSensitivePermission('viewKtp')) {
+    if (!canKtpView) {
       ktpContainer.innerHTML = '<span class="text-slate-500 text-xs">🔒 Terbatas (Butuh Izin Lihat KTP)</span>';
     } else if (u.fotoKtpUrl) {
       ktpContainer.innerHTML = '<button type="button" onclick="openUserKtpByIndex(' + idx + ')" class="px-3 py-1.5 rounded-lg bg-emerald-500/10 text-emerald-400 hover:bg-emerald-500/20 border border-emerald-500/20 font-bold inline-flex items-center gap-1.5 text-xs cursor-pointer"><i class="fa-regular fa-id-card"></i> Lihat Foto KTP</button>';
@@ -8648,13 +9116,62 @@ function openDetailUserByIndex(idx) {
     }
   }
 
+  var wajahContainer = document.getElementById('detailUserWajahContainer');
+  if (wajahContainer) {
+    if (!canKtpView) {
+      wajahContainer.innerHTML = '<span class="text-slate-500 text-xs">🔒 Terbatas</span>';
+    } else if (u.fotoWajahUrl) {
+      wajahContainer.innerHTML = '<button type="button" onclick="openUserKycDocByIndex(' + idx + ', \'wajah\')" class="px-3 py-1.5 rounded-lg bg-sky-500/10 text-sky-300 hover:bg-sky-500/20 border border-sky-500/20 font-bold inline-flex items-center gap-1.5 text-xs cursor-pointer"><i class="fa-solid fa-user"></i> Lihat Wajah</button>';
+    } else {
+      wajahContainer.innerHTML = '<span class="text-slate-500 text-xs">Belum diunggah</span>';
+    }
+  }
+
+  var selfieKtpContainer = document.getElementById('detailUserSelfieKtpContainer');
+  if (selfieKtpContainer) {
+    if (!canKtpView) {
+      selfieKtpContainer.innerHTML = '<span class="text-slate-500 text-xs">🔒 Terbatas</span>';
+    } else if (u.fotoSelfieKtpUrl) {
+      selfieKtpContainer.innerHTML = '<button type="button" onclick="openUserKycDocByIndex(' + idx + ', \'selfie_ktp\')" class="px-3 py-1.5 rounded-lg bg-amber-500/10 text-amber-300 hover:bg-amber-500/20 border border-amber-500/20 font-bold inline-flex items-center gap-1.5 text-xs cursor-pointer"><i class="fa-solid fa-address-card"></i> Lihat Selfie+KTP</button>';
+    } else {
+      selfieKtpContainer.innerHTML = '<span class="text-slate-500 text-xs">Belum diunggah</span>';
+    }
+  }
+
+  var kycStText = document.getElementById('detailUserKycStatusText');
+  if (kycStText) {
+    var dStr = u.kycDeadlineAt ? (' | Batas: ' + u.kycDeadlineAt + (u.kycDaysRemaining > 0 ? ' (Sisa ' + u.kycDaysRemaining + ' hari)' : '')) : '';
+    kycStText.innerText = (u.kycStatus || 'Belum Lengkap') + (u.kycComplete ? '' : dStr);
+  }
+  var kycNoteEl = document.getElementById('detailUserKycNoteText');
+  if (kycNoteEl) kycNoteEl.innerText = u.kycNote || '-';
+
   var loginEl = document.getElementById('detailUserLastLogin');
-  if (loginEl) loginEl.innerText = u.lastLogin || '-';
+  if (loginEl) loginEl.innerText = (u.lastActiveAt && u.lastActiveAt !== '-' ? u.lastActiveAt : u.lastLogin) || '-';
+
+  var targetIsAdmin = isTargetAdminRole(u.role);
+  var canEditTarget = hasModuleAction('users', 'edit') && (!targetIsAdmin || isSuperAdmin());
+  var stLow = (u.status || '').toLowerCase();
+  var isTargetSusp = (stLow === 'suspended' || stLow === 'suspen');
+
+  var btnAppKyc = document.getElementById('btnDetailUserApproveKyc');
+  if (btnAppKyc) {
+    btnAppKyc.classList.toggle('hidden', !canEditTarget || targetIsAdmin);
+    btnAppKyc.onclick = function() { closeModalDetailUser(); reviewUserKycAction(u.email, u.nama, 'approve'); };
+  }
+  var btnRejKyc = document.getElementById('btnDetailUserRejectKyc');
+  if (btnRejKyc) {
+    btnRejKyc.classList.toggle('hidden', !canEditTarget || targetIsAdmin);
+    btnRejKyc.onclick = function() { closeModalDetailUser(); reviewUserKycAction(u.email, u.nama, 'reject'); };
+  }
+  var btnUnsusp = document.getElementById('btnDetailUserUnsuspend');
+  if (btnUnsusp) {
+    btnUnsusp.classList.toggle('hidden', !(isSuperAdmin() && isTargetSusp));
+    btnUnsusp.onclick = function() { closeModalDetailUser(); unsuspendUserAction(u.email, u.nama); };
+  }
 
   var btnEdit = document.getElementById('btnDetailUserEdit');
   if (btnEdit) {
-    var targetIsAdmin = isTargetAdminRole(u.role);
-    var canEditTarget = hasModuleAction('users', 'edit') && (!targetIsAdmin || isSuperAdmin());
     btnEdit.classList.toggle('hidden', !canEditTarget);
     btnEdit.onclick = function() {
       closeModalDetailUser();
@@ -8712,11 +9229,22 @@ function openEditUserByIndex(idx) {
     var st = (u.status || 'Aktif').toLowerCase();
     if (st === 'pending' || st === 'pending approval') {
       statusInput.value = 'Pending Approval';
+    } else if (st === 'suspended' || st === 'suspen') {
+      statusInput.value = 'Suspended';
     } else if (st === 'dibekukan' || st === 'frozen') {
       statusInput.value = 'Dibekukan';
     } else {
       statusInput.value = 'Aktif';
     }
+  }
+  var kycSum = document.getElementById('editUserKycSummary');
+  if (kycSum) {
+    kycSum.innerText = (u.kycStatus || 'Belum Lengkap') + (u.kycDeadlineAt ? ' (Batas: ' + u.kycDeadlineAt + ')' : '');
+  }
+  var btnEditUnsusp = document.getElementById('btnEditUserUnsuspend');
+  if (btnEditUnsusp) {
+    var isSuspEdit = ((u.status || '').toLowerCase() === 'suspended' || (u.status || '').toLowerCase() === 'suspen');
+    btnEditUnsuspend.classList.toggle('hidden', !(isSuperAdmin() && isSuspEdit));
   }
 
   var bankInput = document.getElementById('editUserBank');
@@ -9339,6 +9867,8 @@ function permanentDeleteTrashAction(module, id) {
 function handleLoginSubmit(e) {
   if (e && e.preventDefault) e.preventDefault();
   setInlineAuthError('loginErrorMsg', '');
+  var sSusp = document.getElementById('loginSuspendedBox');
+  if (sSusp) sSusp.classList.add('hidden');
   var email = document.getElementById('loginEmail').value.trim();
   var pass = document.getElementById('loginPassword').value.trim();
   if (!email || !pass) {
@@ -9364,6 +9894,12 @@ function handleLoginSubmit(e) {
       applyUserSessionUI();
       showToast('Selamat datang, ' + (currentUserSession.nama || currentUserSession.email || 'Operator'), 'success');
       switchView(getFirstAllowedView(), true);
+    } else if (res && res.requireLoginOtp) {
+      showLoginOtpStep(res.email || email, res.message);
+      showToast('Masukkan 6 digit kode OTP dari email Anda.', 'info');
+    } else if (res && res.suspended) {
+      showLoginSuspendedBox(res.message, res.ownerWaUrl);
+      showToast('Akun terkena suspen KYC 30 hari. Hubungi Owner.', 'error');
     } else {
       var msg = (res && res.message) || 'Gagal login ke sistem';
       setInlineAuthError('loginErrorMsg', msg, false);
@@ -9381,19 +9917,24 @@ function handleRegisterSubmit(e) {
   setInlineAuthError('regErrorMsg', '');
   var nama = document.getElementById('regNama').value.trim();
   var noWa = document.getElementById('regNoWa').value.trim();
-  var alamat = document.getElementById('regAlamat').value.trim();
   var email = document.getElementById('regEmail').value.trim().toLowerCase();
   var pass = document.getElementById('regPassword').value;
   var conf = document.getElementById('regPasswordConfirm').value;
 
+  if (nama.length < 2) {
+    setInlineAuthError('regErrorMsg', 'Nama lengkap minimal 2 karakter.', false);
+    showToast('Nama minimal 2 karakter', 'warning');
+    return;
+  }
   if (!email || !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) {
     setInlineAuthError('regErrorMsg', 'Masukkan alamat email asli yang valid (contoh: nama@gmail.com).', false);
     showToast('Alamat email tidak valid', 'warning');
     return;
   }
-  if (nama.length < 2) {
-    setInlineAuthError('regErrorMsg', 'Nama lengkap minimal 2 karakter.', false);
-    showToast('Nama minimal 2 karakter', 'warning');
+  var waDigits = noWa.replace(/[^0-9]/g, '');
+  if (!waDigits || waDigits.length < 8 || waDigits.length > 16) {
+    setInlineAuthError('regErrorMsg', 'Masukkan nomor WhatsApp aktif yang valid (minimal 8 digit).', false);
+    showToast('Nomor WhatsApp tidak valid', 'warning');
     return;
   }
   if (pass.length < 6) {
@@ -9409,11 +9950,10 @@ function handleRegisterSubmit(e) {
 
   var payload = {
     nama: nama,
-    nik: (document.getElementById('regNik') ? document.getElementById('regNik').value.trim() : ''),
     noWa: noWa,
     email: email,
     password: pass,
-    alamat: alamat
+    confirmPassword: conf
   };
 
   regPendingPayload = payload;
@@ -9908,11 +10448,92 @@ function openMyProfileModal() {
   var r = document.getElementById('myProfNoRek'); if (r) r.value = currentUserSession.noRekening || '';
   var an = document.getElementById('myProfAtasNama'); if (an) an.value = currentUserSession.atasNama || currentUserSession.nama || '';
   var ktpUrl = document.getElementById('myProfFotoKtpUrl'); if (ktpUrl) ktpUrl.value = currentUserSession.fotoKtpUrl || '';
+  var profUrlInp = document.getElementById('myProfFotoProfilUrl');
+  if (profUrlInp) profUrlInp.value = currentUserSession.fotoProfil || '';
+  renderMyProfileAvatarPreview(currentUserSession.fotoProfil || '');
+  updateMyProfileKycBadge();
   updateMyProfileKtpPreviewState();
   var op = document.getElementById('myProfOldPass'); if (op) op.value = '';
   var np = document.getElementById('myProfNewPass'); if (np) np.value = '';
   var cp = document.getElementById('myProfConfirmPass'); if (cp) cp.value = '';
   openModal('modalMyProfile');
+}
+
+function renderMyProfileAvatarPreview(url) {
+  var box = document.getElementById('myProfAvatarPreview');
+  if (!box) return;
+  var initial = ((currentUserSession && currentUserSession.nama) || 'U').charAt(0).toUpperCase();
+  var safeUrl = sanitizeHttpUrl(url || '');
+  if (safeUrl) {
+    box.innerHTML = '<img src="' + escapeHtml(safeUrl) + '" alt="' + escapeHtml(initial) + '" class="w-full h-full object-cover" onerror="this.parentNode.innerText=\'' + escapeHtml(initial) + '\';">';
+  } else {
+    box.innerText = initial;
+  }
+}
+
+function updateMyProfileKycBadge() {
+  var badge = document.getElementById('myProfKycBadge');
+  var desc = document.getElementById('myProfKycDesc');
+  var card = document.getElementById('myProfKycCard');
+  if (!currentUserSession || !badge || !desc) return;
+  var km = currentUserSession.kycMeta || {};
+  if (isSuperAdmin() || km.kycComplete) {
+    badge.innerText = 'Terverifikasi';
+    badge.className = 'text-[10px] font-bold px-2 py-0.5 rounded-full bg-emerald-500/20 text-emerald-400 border border-emerald-500/30';
+    desc.innerText = isSuperAdmin() ? 'Akun Owner / Super Admin aktif penuh.' : 'Identitas (Wajah, KTP, Selfie+KTP, & Alamat) sudah lengkap.';
+    if (card) card.className = 'p-3.5 rounded-xl bg-emerald-500/10 border border-emerald-500/30 flex flex-col sm:flex-row sm:items-center justify-between gap-2.5';
+  } else {
+    var dRem = km.daysRemaining !== undefined ? km.daysRemaining : 30;
+    badge.innerText = (km.kycStatus || 'Belum Lengkap') + ' (' + dRem + ' Hari)';
+    badge.className = 'text-[10px] font-bold px-2 py-0.5 rounded-full bg-amber-500/20 text-amber-300 border border-amber-500/30';
+    desc.innerText = km.kycNote || ('Batas waktu s.d. ' + (km.kycDeadlineAt || '30 hari') + '. Wajib lengkapi lewat Kamera langsung.');
+  }
+}
+
+function handleMyProfileAvatarUpload(inputEl) {
+  var file = inputEl && inputEl.files && inputEl.files[0];
+  if (!file) return;
+  var lbl = document.getElementById('lblBtnUploadMyProfAvatar');
+  if (lbl) lbl.innerText = 'Memproses...';
+  readFileSafeForUpload(file, { maxDim: 600 }, function(processed) {
+    if (lbl) lbl.innerText = 'Mengunggah...';
+    uploadProfileAvatarPayload(processed.dataUrl, processed.mimeType, processed.fileName, function(ok) {
+      if (lbl) lbl.innerText = 'Ganti Foto Profil';
+      inputEl.value = '';
+    });
+  }, function(errMsg) {
+    if (lbl) lbl.innerText = 'Ganti Foto Profil';
+    inputEl.value = '';
+    showToast(errMsg || 'File foto profil tidak valid.', 'warning');
+  });
+}
+
+function uploadProfileAvatarPayload(dataUrl, mimeType, fileName, doneCb) {
+  var userNama = (document.getElementById('myProfNama') ? document.getElementById('myProfNama').value.trim() : '') || (currentUserSession && currentUserSession.nama) || 'Pengguna';
+  var payload = {
+    module: 'user',
+    folderType: 'user_profile',
+    targetName: userNama,
+    targetEmail: currentUserSession ? currentUserSession.email : '',
+    fileName: fileName || 'avatar.jpg',
+    mimeType: mimeType || 'image/jpeg',
+    base64Data: dataUrl
+  };
+  callBackend('uploadStudioFile', [payload, currentUserSession], function(res) {
+    if (doneCb) doneCb(!!(res && res.success));
+    if (res && res.success) {
+      var avUrl = res.avatarUrl || res.url || res.fileUrl || '';
+      var urlInp = document.getElementById('myProfFotoProfilUrl');
+      if (urlInp) urlInp.value = avUrl;
+      renderMyProfileAvatarPreview(avUrl);
+      showToast('Foto profil diunggah! Klik Simpan Profil untuk menerapkan.', 'success');
+    } else {
+      showToast((res && res.message) || 'Gagal mengunggah foto profil.', 'error');
+    }
+  }, function(err) {
+    if (doneCb) doneCb(false);
+    showToast('Gagal upload avatar: ' + ((err && err.message) || err || 'Koneksi terputus'), 'error');
+  });
 }
 
 function handleMyProfileKtpUpload(inputEl) {
@@ -10013,6 +10634,7 @@ function handleSaveMyProfile(e) {
     noRekening: document.getElementById('myProfNoRek').value.trim(),
     atasNama: document.getElementById('myProfAtasNama').value.trim(),
     fotoKtpUrl: document.getElementById('myProfFotoKtpUrl') ? document.getElementById('myProfFotoKtpUrl').value.trim() : '',
+    fotoProfilUrl: document.getElementById('myProfFotoProfilUrl') ? document.getElementById('myProfFotoProfilUrl').value.trim() : '',
     oldPassword: oldPass,
     newPassword: newPass
   };
@@ -10626,6 +11248,563 @@ function runManualDailyRecapAction() {
       if (btn) { btn.disabled = false; btn.innerHTML = defHtml; }
       showToast('Kesalahan server: ' + err.message, 'error');
     });
+  });
+}
+
+// ===============================================================================
+// 21. VERIFIKASI KYC WAJIB 30 HARI, KAMERA LIVE WEBRTC & GEMINI OCR (REV-10.23)
+// ===============================================================================
+var kycLocalThumbCache = {};
+var kycLastCapturedKtpData = null;
+var liveCameraStream = null;
+var cameraTargetKind = 'ktp';
+var cameraFacingMode = 'environment';
+var capturedCameraDataUrl = '';
+
+function updateKycBannerUI() {
+  var banner = document.getElementById('kycCountdownBanner');
+  if (!banner) return;
+  if (!currentUserSession || isSuperAdmin()) {
+    banner.classList.add('hidden');
+    return;
+  }
+  var km = currentUserSession.kycMeta || {};
+  if (km.kycComplete) {
+    banner.classList.add('hidden');
+    return;
+  }
+  banner.classList.remove('hidden');
+  var titleEl = document.getElementById('kycBannerTitle');
+  var badgeEl = document.getElementById('kycBannerDaysBadge');
+  var subEl = document.getElementById('kycBannerSubtitle');
+  var stLow = (km.kycStatus || '').toLowerCase();
+  var dRem = (km.daysRemaining !== undefined) ? km.daysRemaining : 30;
+
+  if (stLow === 'ditolak') {
+    if (titleEl) titleEl.innerText = 'Verifikasi KYC Anda Ditolak Owner — Segera Perbaiki';
+    if (badgeEl) {
+      badgeEl.innerText = 'Ditolak (' + dRem + ' Hari)';
+      badgeEl.className = 'text-[10px] font-extrabold px-2 py-0.5 rounded-full bg-rose-500/20 text-rose-300 border border-rose-500/40';
+    }
+    if (subEl) subEl.innerText = (km.kycNote || 'Ambil ulang Foto Wajah, KTP, dan Selfie+KTP lewat kamera sebelum masa tenggang habis.');
+  } else {
+    if (titleEl) titleEl.innerText = 'Verifikasi Identitas Tahap 2 (KYC) Wajib Dilengkapi';
+    if (badgeEl) {
+      badgeEl.innerText = dRem <= 3 ? ('Kritis: Sisa ' + dRem + ' Hari!') : ('Sisa ' + dRem + ' Hari');
+      badgeEl.className = dRem <= 3
+        ? 'text-[10px] font-extrabold px-2 py-0.5 rounded-full bg-rose-500/25 text-rose-200 border border-rose-500/40 animate-pulse'
+        : 'text-[10px] font-extrabold px-2 py-0.5 rounded-full bg-amber-500/20 text-amber-300 border border-amber-500/35';
+    }
+    if (subEl) subEl.innerText = 'Batas hingga ' + (km.kycDeadlineAt || '30 hari') + '. Lengkapi Foto Wajah, Foto KTP, Selfie+KTP, & Alamat agar akun tidak terkena suspen.';
+  }
+}
+
+function openModalKycVerification() {
+  if (!currentUserSession) return;
+  var km = currentUserSession.kycMeta || {};
+  var wInp = document.getElementById('kycFotoWajahUrl');
+  var kInp = document.getElementById('kycFotoKtpUrl');
+  var sInp = document.getElementById('kycFotoSelfieKtpUrl');
+  var alInp = document.getElementById('kycAlamat');
+  var nikInp = document.getElementById('kycNik');
+
+  if (wInp) wInp.value = currentUserSession.fotoWajahUrl || '';
+  if (kInp) kInp.value = currentUserSession.fotoKtpUrl || '';
+  if (sInp) sInp.value = currentUserSession.fotoSelfieKtpUrl || '';
+  if (alInp) alInp.value = currentUserSession.alamat || '';
+  if (nikInp) nikInp.value = currentUserSession.nik || '';
+
+  var dlInfo = document.getElementById('kycModalDeadlineInfo');
+  var badge = document.getElementById('kycModalBadge');
+  if (km.kycComplete) {
+    if (dlInfo) dlInfo.innerText = 'Verifikasi identitas sudah lengkap pada ' + (km.kycVerifiedAt || '-') + '. Anda tetap dapat memperbarui ulang lewat kamera bila diperlukan.';
+    if (badge) {
+      badge.innerText = 'Terverifikasi';
+      badge.className = 'px-2 py-0.5 rounded-full bg-emerald-500/20 text-emerald-400 font-bold text-[10px]';
+    }
+  } else {
+    var rem = (km.daysRemaining !== undefined) ? km.daysRemaining : 30;
+    if (dlInfo) dlInfo.innerText = 'Batas melengkapi: ' + (km.kycDeadlineAt || '30 hari') + ' (Sisa ' + rem + ' hari sebelum akun suspen).';
+    if (badge) {
+      badge.innerText = km.kycStatus || 'Belum Lengkap';
+      badge.className = 'px-2 py-0.5 rounded-full bg-amber-500/20 text-amber-300 font-bold text-[10px]';
+    }
+  }
+
+  var btnRescan = document.getElementById('btnScanKtpGemini');
+  if (btnRescan) btnRescan.classList.toggle('hidden', !kycLastCapturedKtpData);
+
+  renderKycModalPreviews();
+  openModal('modalKycVerification');
+}
+
+function renderSingleKycPreview(kind, url, boxId, statusId, emptyIconHtml) {
+  var box = document.getElementById(boxId);
+  var stEl = document.getElementById(statusId);
+  if (!box || !stEl) return;
+  if (kycLocalThumbCache[kind]) {
+    box.innerHTML = '<img src="' + kycLocalThumbCache[kind] + '" alt="' + escapeHtml(kind) + '" class="w-full h-full object-cover">';
+    stEl.innerText = 'Tersimpan';
+    stEl.className = 'text-[10px] text-emerald-400 font-bold';
+    return;
+  }
+  if (!url) {
+    box.innerHTML = emptyIconHtml;
+    stEl.innerText = 'Belum ada';
+    stEl.className = 'text-[10px] text-slate-400';
+    return;
+  }
+  stEl.innerText = 'Tersimpan';
+  stEl.className = 'text-[10px] text-emerald-400 font-bold';
+  box.innerHTML = '<span class="text-[10px] text-emerald-300"><i class="fa-solid fa-circle-notch fa-spin mr-1"></i> Memuat...</span>';
+  callBackend('getProtectedDriveImage', [url, currentUserSession], function(res) {
+    if (res && res.success && res.dataUri) {
+      kycLocalThumbCache[kind] = res.dataUri;
+      box.innerHTML = '<img src="' + res.dataUri + '" alt="' + escapeHtml(kind) + '" class="w-full h-full object-cover">';
+    } else {
+      box.innerHTML = '<div class="text-center text-emerald-400 text-[10px] px-2"><i class="fa-solid fa-circle-check text-lg mb-1"></i><p>Tersimpan di Drive</p></div>';
+    }
+  }, function() {
+    box.innerHTML = '<div class="text-center text-emerald-400 text-[10px] px-2"><i class="fa-solid fa-circle-check text-lg mb-1"></i><p>Tersimpan di Drive</p></div>';
+  });
+}
+
+function renderKycModalPreviews() {
+  var wUrl = document.getElementById('kycFotoWajahUrl') ? document.getElementById('kycFotoWajahUrl').value.trim() : '';
+  var kUrl = document.getElementById('kycFotoKtpUrl') ? document.getElementById('kycFotoKtpUrl').value.trim() : '';
+  var sUrl = document.getElementById('kycFotoSelfieKtpUrl') ? document.getElementById('kycFotoSelfieKtpUrl').value.trim() : '';
+  renderSingleKycPreview('wajah', wUrl, 'kycPreviewWajahBox', 'kycStatusWajah', '<div class="text-center space-y-1"><i class="fa-solid fa-user-circle text-2xl text-slate-600"></i><p>Pratinjau Wajah</p></div>');
+  renderSingleKycPreview('ktp', kUrl, 'kycPreviewKtpBox', 'kycStatusKtp', '<div class="text-center space-y-1"><i class="fa-regular fa-id-card text-2xl text-slate-600"></i><p>Pratinjau e-KTP</p></div>');
+  renderSingleKycPreview('selfie_ktp', sUrl, 'kycPreviewSelfieKtpBox', 'kycStatusSelfieKtp', '<div class="text-center space-y-1"><i class="fa-solid fa-address-card text-2xl text-slate-600"></i><p>Wajah + KTP Jelas</p></div>');
+}
+
+function stopLiveCameraStream() {
+  if (liveCameraStream && liveCameraStream.getTracks) {
+    liveCameraStream.getTracks().forEach(function(t) {
+      try { t.stop(); } catch (e) {}
+    });
+  }
+  liveCameraStream = null;
+  var vid = document.getElementById('kycCameraVideo');
+  if (vid) vid.srcObject = null;
+}
+
+function closeLiveCameraModal() {
+  stopLiveCameraStream();
+  capturedCameraDataUrl = '';
+  closeModal('modalCameraCapture');
+}
+
+function openKycCameraForProfileAvatar() {
+  openLiveCameraCapture('profile_avatar');
+}
+
+function openLiveCameraCapture(kind) {
+  cameraTargetKind = kind || 'ktp';
+  cameraFacingMode = (cameraTargetKind === 'ktp') ? 'environment' : 'user';
+  capturedCameraDataUrl = '';
+
+  var titles = {
+    wajah: 'Kamera Foto Wajah (Selfie)',
+    ktp: 'Kamera Foto e-KTP Asli',
+    selfie_ktp: 'Kamera Selfie Pegang e-KTP',
+    profile_avatar: 'Kamera Foto Profil'
+  };
+  var hints = {
+    wajah: 'Hadapkan wajah menghadap kamera dengan pencahayaan terang tanpa masker.',
+    ktp: 'Posisikan kartu e-KTP memenuhi kotak agar teks alamat terbaca jelas oleh AI.',
+    selfie_ktp: 'Tampakkan wajah beserta e-KTP di depan dada secara sejajar.',
+    profile_avatar: 'Ambil foto terbaik untuk foto profil akun Anda.'
+  };
+
+  var tEl = document.getElementById('cameraModalTitle');
+  if (tEl) tEl.innerHTML = '<i class="fa-solid fa-camera text-emerald-400"></i> ' + (titles[cameraTargetKind] || 'Kamera Langsung');
+  var hEl = document.getElementById('cameraModalHint');
+  if (hEl) hEl.innerText = hints[cameraTargetKind] || '';
+
+  var guide = document.getElementById('cameraGuideBox');
+  if (guide) {
+    if (cameraTargetKind === 'ktp') {
+      guide.className = 'w-72 h-44 rounded-xl border-2 border-dashed border-emerald-400/85 shadow-[0_0_0_9999px_rgba(0,0,0,0.42)]';
+    } else if (cameraTargetKind === 'selfie_ktp') {
+      guide.className = 'w-64 h-64 rounded-2xl border-2 border-dashed border-amber-400/85 shadow-[0_0_0_9999px_rgba(0,0,0,0.38)]';
+    } else {
+      guide.className = 'w-44 h-56 rounded-full border-2 border-dashed border-emerald-400/85 shadow-[0_0_0_9999px_rgba(0,0,0,0.42)]';
+    }
+  }
+
+  var nativeInp = document.getElementById('kycNativeCameraInput');
+  if (nativeInp) {
+    nativeInp.setAttribute('capture', cameraFacingMode === 'environment' ? 'environment' : 'user');
+    nativeInp.value = '';
+  }
+
+  var vid = document.getElementById('kycCameraVideo');
+  var cvs = document.getElementById('kycCameraCanvas');
+  var liveCtrl = document.getElementById('cameraLiveControls');
+  var confCtrl = document.getElementById('cameraConfirmControls');
+  var fbBox = document.getElementById('cameraFallbackBox');
+  if (vid) vid.classList.remove('hidden');
+  if (cvs) cvs.classList.add('hidden');
+  if (liveCtrl) liveCtrl.classList.remove('hidden');
+  if (confCtrl) confCtrl.classList.add('hidden');
+  if (fbBox) fbBox.classList.add('hidden');
+
+  openModal('modalCameraCapture');
+  startLiveCameraStream(cameraFacingMode);
+}
+
+function startLiveCameraStream(facing) {
+  stopLiveCameraStream();
+  var fbBox = document.getElementById('cameraFallbackBox');
+  var liveCtrl = document.getElementById('cameraLiveControls');
+  var vid = document.getElementById('kycCameraVideo');
+
+  if (!navigator.mediaDevices || !navigator.mediaDevices.getUserMedia) {
+    if (fbBox) fbBox.classList.remove('hidden');
+    if (liveCtrl) liveCtrl.classList.add('hidden');
+    return;
+  }
+
+  navigator.mediaDevices.getUserMedia({
+    video: { facingMode: facing || 'environment', width: { ideal: 1280 }, height: { ideal: 960 } },
+    audio: false
+  }).then(function(stream) {
+    liveCameraStream = stream;
+    if (vid) {
+      vid.srcObject = stream;
+      vid.play().catch(function() {});
+    }
+    if (fbBox) fbBox.classList.add('hidden');
+    if (liveCtrl) liveCtrl.classList.remove('hidden');
+  }).catch(function(err) {
+    if (fbBox) fbBox.classList.remove('hidden');
+    if (liveCtrl) liveCtrl.classList.add('hidden');
+    var reasonEl = document.getElementById('cameraFallbackReason');
+    if (reasonEl) {
+      reasonEl.innerText = isGasEnv
+        ? 'Lingkungan Google Apps Script memblokir kamera live di iframe. Gunakan tombol Kamera Sistem HP di bawah.'
+        : 'Izin kamera tidak tersedia (' + (err && err.name ? err.name : 'Blocked') + '). Gunakan tombol Kamera Sistem HP di bawah.';
+    }
+  });
+}
+
+function toggleLiveCameraFacing() {
+  cameraFacingMode = (cameraFacingMode === 'environment') ? 'user' : 'environment';
+  startLiveCameraStream(cameraFacingMode);
+}
+
+function snapLiveCameraFrame() {
+  var vid = document.getElementById('kycCameraVideo');
+  var cvs = document.getElementById('kycCameraCanvas');
+  if (!vid || !cvs || !vid.videoWidth) {
+    showToast('Kamera belum siap, tunggu sebentar.', 'warning');
+    return;
+  }
+  var maxDim = (cameraTargetKind === 'profile_avatar') ? 640 : 1440;
+  var vw = vid.videoWidth;
+  var vh = vid.videoHeight;
+  if (vw > maxDim || vh > maxDim) {
+    if (vw >= vh) { vh = Math.round(vh * (maxDim / vw)); vw = maxDim; }
+    else { vw = Math.round(vw * (maxDim / vh)); vh = maxDim; }
+  }
+  cvs.width = vw;
+  cvs.height = vh;
+  var ctx = cvs.getContext('2d');
+  ctx.drawImage(vid, 0, 0, vw, vh);
+
+  var q = 0.86;
+  var outUrl = cvs.toDataURL('image/jpeg', q);
+  while (outUrl.length > (3.2 * 1024 * 1024) && q > 0.45) {
+    q -= 0.14;
+    outUrl = cvs.toDataURL('image/jpeg', q);
+  }
+  capturedCameraDataUrl = outUrl;
+
+  vid.classList.add('hidden');
+  cvs.classList.remove('hidden');
+  var liveCtrl = document.getElementById('cameraLiveControls');
+  var confCtrl = document.getElementById('cameraConfirmControls');
+  if (liveCtrl) liveCtrl.classList.add('hidden');
+  if (confCtrl) confCtrl.classList.remove('hidden');
+}
+
+function retakeLiveCameraFrame() {
+  capturedCameraDataUrl = '';
+  var vid = document.getElementById('kycCameraVideo');
+  var cvs = document.getElementById('kycCameraCanvas');
+  var liveCtrl = document.getElementById('cameraLiveControls');
+  var confCtrl = document.getElementById('cameraConfirmControls');
+  if (cvs) cvs.classList.add('hidden');
+  if (vid) vid.classList.remove('hidden');
+  if (confCtrl) confCtrl.classList.add('hidden');
+  if (liveCtrl) liveCtrl.classList.remove('hidden');
+}
+
+function confirmAndUploadCameraPhoto() {
+  if (!capturedCameraDataUrl) return;
+  var btn = document.getElementById('btnConfirmLivePhoto');
+  if (btn) { btn.disabled = true; btn.innerHTML = '<i class="fa-solid fa-spinner fa-spin"></i> Mengunggah...'; }
+
+  if (cameraTargetKind === 'profile_avatar') {
+    uploadProfileAvatarPayload(capturedCameraDataUrl, 'image/jpeg', 'profil_kamera.jpg', function(ok) {
+      if (btn) { btn.disabled = false; btn.innerHTML = '<i class="fa-solid fa-cloud-arrow-up"></i> Pakai &amp; Unggah Foto Ini'; }
+      if (ok) closeLiveCameraModal();
+    });
+    return;
+  }
+
+  uploadCapturedKycDataUrl(cameraTargetKind, capturedCameraDataUrl, 'image/jpeg', cameraTargetKind + '_' + Date.now() + '.jpg', function() {
+    if (btn) { btn.disabled = false; btn.innerHTML = '<i class="fa-solid fa-cloud-arrow-up"></i> Pakai &amp; Unggah Foto Ini'; }
+  });
+}
+
+function handleNativeCameraCapture(inputEl) {
+  var file = inputEl && inputEl.files && inputEl.files[0];
+  if (!file) return;
+  var maxDim = (cameraTargetKind === 'profile_avatar') ? 640 : 1440;
+  readFileSafeForUpload(file, { maxDim: maxDim }, function(processed) {
+    inputEl.value = '';
+    if (cameraTargetKind === 'profile_avatar') {
+      uploadProfileAvatarPayload(processed.dataUrl, processed.mimeType, processed.fileName, function(ok) {
+        if (ok) closeLiveCameraModal();
+      });
+    } else {
+      uploadCapturedKycDataUrl(cameraTargetKind, processed.dataUrl, processed.mimeType, processed.fileName);
+    }
+  }, function(errMsg) {
+    inputEl.value = '';
+    showToast(errMsg || 'Gagal membaca foto dari kamera.', 'warning');
+  });
+}
+
+function uploadCapturedKycDataUrl(kind, dataUrl, mimeType, fileName, resetUiCb) {
+  var folderMap = {
+    wajah: 'user_wajah',
+    ktp: 'user_ktp',
+    selfie_ktp: 'user_selfie_ktp'
+  };
+  var folderType = folderMap[kind] || 'user_ktp';
+  var payload = {
+    module: 'user',
+    folderType: folderType,
+    targetName: (currentUserSession && currentUserSession.nama) || 'Pengguna',
+    targetEmail: (currentUserSession && currentUserSession.email) || '',
+    fileName: fileName || (kind + '.jpg'),
+    mimeType: mimeType || 'image/jpeg',
+    base64Data: dataUrl
+  };
+
+  callBackend('uploadStudioFile', [payload, currentUserSession], function(res) {
+    if (resetUiCb) resetUiCb();
+    if (res && res.success) {
+      var driveUrl = res.url || res.fileUrl || '';
+      kycLocalThumbCache[kind] = dataUrl;
+      if (kind === 'wajah') {
+        var wInp = document.getElementById('kycFotoWajahUrl');
+        if (wInp) wInp.value = driveUrl;
+      } else if (kind === 'ktp') {
+        var kInp = document.getElementById('kycFotoKtpUrl');
+        if (kInp) kInp.value = driveUrl;
+        kycLastCapturedKtpData = { dataUrl: dataUrl, mimeType: mimeType || 'image/jpeg', fileName: fileName };
+        var btnRescan = document.getElementById('btnScanKtpGemini');
+        if (btnRescan) btnRescan.classList.remove('hidden');
+      } else if (kind === 'selfie_ktp') {
+        var sInp = document.getElementById('kycFotoSelfieKtpUrl');
+        if (sInp) sInp.value = driveUrl;
+      }
+      renderKycModalPreviews();
+      closeLiveCameraModal();
+      showToast('Foto KYC berhasil disimpan privat ke Google Drive!', 'success');
+
+      if (kind === 'ktp') {
+        scanCapturedKtpDataUrl(dataUrl, mimeType || 'image/jpeg', fileName || 'ktp.jpg');
+      }
+    } else {
+      showToast((res && res.message) || 'Gagal mengunggah foto KYC.', 'error');
+    }
+  }, function(err) {
+    if (resetUiCb) resetUiCb();
+    showToast('Gagal mengunggah foto KYC: ' + ((err && err.message) || err || 'Koneksi terputus'), 'error');
+  });
+}
+
+function triggerScanLastCapturedKtp() {
+  if (!kycLastCapturedKtpData) {
+    showToast('Ambil Foto KTP lewat kamera terlebih dahulu untuk memindai alamat.', 'warning');
+    return;
+  }
+  scanCapturedKtpDataUrl(kycLastCapturedKtpData.dataUrl, kycLastCapturedKtpData.mimeType, kycLastCapturedKtpData.fileName);
+}
+
+function scanCapturedKtpDataUrl(dataUrl, mimeType, fileName) {
+  var ocrMsgEl = document.getElementById('kycOcrStatusMsg');
+  var btnRescan = document.getElementById('btnScanKtpGemini');
+  if (ocrMsgEl) {
+    ocrMsgEl.innerHTML = '<i class="fa-solid fa-spinner fa-spin text-emerald-400 mr-1"></i> Memindai alamat KTP dengan Gemini AI...';
+    ocrMsgEl.className = 'text-[10px] text-emerald-300 font-semibold';
+  }
+  if (btnRescan) btnRescan.disabled = true;
+
+  callBackend('scanKtpWithGemini', [{ base64Data: dataUrl, mimeType: mimeType, fileName: fileName }, currentUserSession], function(res) {
+    if (btnRescan) btnRescan.disabled = false;
+    if (res && res.success) {
+      var alInp = document.getElementById('kycAlamat');
+      var nikInp = document.getElementById('kycNik');
+      if (alInp && res.alamat) alInp.value = res.alamat;
+      if (nikInp && res.nik) nikInp.value = res.nik;
+      if (ocrMsgEl) {
+        ocrMsgEl.innerText = 'Alamat KTP terdeteksi otomatis! Periksa kembali sebelum simpan.';
+        ocrMsgEl.className = 'text-[10px] text-emerald-400 font-bold';
+      }
+      showToast(res.message || 'Alamat e-KTP berhasil dipindai otomatis!', 'success');
+    } else {
+      if (ocrMsgEl) {
+        ocrMsgEl.innerText = (res && res.message) || 'Scan AI gagal. Silakan ketik alamat KTP manual.';
+        ocrMsgEl.className = 'text-[10px] text-amber-300';
+      }
+      showToast((res && res.message) || 'Gagal memindai KTP otomatis, silakan isi manual.', 'warning');
+    }
+  }, function(err) {
+    if (btnRescan) btnRescan.disabled = false;
+    if (ocrMsgEl) {
+      ocrMsgEl.innerText = 'Koneksi OCR gagal. Ketik alamat KTP secara manual.';
+      ocrMsgEl.className = 'text-[10px] text-amber-300';
+    }
+    showToast('Gagal scan KTP: ' + ((err && err.message) || err), 'warning');
+  });
+}
+
+function handleSubmitKycVerification(e) {
+  if (e && e.preventDefault) e.preventDefault();
+  var fotoWajahUrl = document.getElementById('kycFotoWajahUrl') ? document.getElementById('kycFotoWajahUrl').value.trim() : '';
+  var fotoKtpUrl = document.getElementById('kycFotoKtpUrl') ? document.getElementById('kycFotoKtpUrl').value.trim() : '';
+  var fotoSelfieKtpUrl = document.getElementById('kycFotoSelfieKtpUrl') ? document.getElementById('kycFotoSelfieKtpUrl').value.trim() : '';
+  var alamat = document.getElementById('kycAlamat') ? document.getElementById('kycAlamat').value.trim() : '';
+  var nik = document.getElementById('kycNik') ? document.getElementById('kycNik').value.trim() : '';
+
+  if (!fotoWajahUrl || !fotoKtpUrl || !fotoSelfieKtpUrl) {
+    showToast('Ketiga foto KYC (Wajah, KTP, dan Selfie Pegang KTP) wajib diambil lewat kamera!', 'warning');
+    return;
+  }
+  if (!alamat || alamat.length < 8) {
+    showToast('Alamat lengkap sesuai KTP wajib diisi (minimal 8 karakter).', 'warning');
+    return;
+  }
+
+  var btn = document.getElementById('btnSubmitKycVerification');
+  var defHtml = '<i class="fa-solid fa-shield-check"></i> <span>Simpan &amp; Selesaikan Verifikasi</span>';
+  if (btn) { btn.disabled = true; btn.innerText = 'Menyimpan KYC...'; }
+
+  callBackend('submitUserKyc', [{
+    alamat: alamat,
+    nik: nik,
+    fotoWajahUrl: fotoWajahUrl,
+    fotoKtpUrl: fotoKtpUrl,
+    fotoSelfieKtpUrl: fotoSelfieKtpUrl
+  }, currentUserSession], function(res) {
+    if (btn) { btn.disabled = false; btn.innerHTML = defHtml; }
+    if (res && res.success) {
+      if (res.userSession) {
+        currentUserSession = res.userSession;
+        localStorage.setItem(SESSION_KEY, JSON.stringify(currentUserSession));
+        applyUserSessionUI();
+      }
+      closeModal('modalKycVerification');
+      showToast(res.message || 'Verifikasi KYC lengkap dan tersimpan!', 'success');
+    } else {
+      showToast((res && res.message) || 'Gagal menyimpan verifikasi KYC.', 'error');
+    }
+  }, function(err) {
+    if (btn) { btn.disabled = false; btn.innerHTML = defHtml; }
+    showToast('Kesalahan server: ' + ((err && err.message) || err), 'error');
+  });
+}
+
+function reviewUserKycAction(email, name, decision) {
+  var isApprove = decision === 'approve';
+  var msg = isApprove
+    ? 'Tandai dokumen KYC "' + name + '" sebagai Terverifikasi?'
+    : 'Tolak dokumen KYC "' + name + '"? Pengguna akan diminta mengambil ulang foto lewat kamera.';
+  confirmAction(isApprove ? 'Setujui KYC Pengguna' : 'Tolak KYC Pengguna', msg, function() {
+    callBackend('reviewUserKyc', [{
+      targetEmail: email,
+      decision: decision,
+      note: isApprove ? 'Disetujui Owner Studio' : 'Foto/data KYC belum jelas. Mohon foto ulang lewat kamera.',
+      extendDays: 7
+    }, currentUserSession], function(res) {
+      if (res && res.success) {
+        showToast(res.message || 'Status KYC diperbarui!', 'success');
+        loadUsersData(true);
+      } else {
+        showToast((res && res.message) || 'Gagal memproses audit KYC.', 'error');
+      }
+    }, function(err) {
+      showToast('Kesalahan server: ' + ((err && err.message) || err), 'error');
+    });
+  });
+}
+
+function unsuspendUserAction(email, name) {
+  confirmAction('Cabut Suspen KYC (+14 Hari)', 'Aktifkan kembali akun "' + name + '" (' + email + ') dan beri perpanjangan 14 hari untuk melengkapi verifikasi KYC?', function() {
+    callBackend('unsuspendUser', [{ targetEmail: email, extendDays: 14 }, currentUserSession], function(res) {
+      if (res && res.success) {
+        showToast(res.message || 'Suspen berhasil dicabut!', 'success');
+        loadUsersData(true);
+      } else {
+        showToast((res && res.message) || 'Gagal mencabut suspen.', 'error');
+      }
+    }, function(err) {
+      showToast('Kesalahan server: ' + ((err && err.message) || err), 'error');
+    });
+  });
+}
+
+function unsuspendUserFromEditModal() {
+  var email = document.getElementById('editUserEmailHidden') ? document.getElementById('editUserEmailHidden').value.trim() : '';
+  var name = document.getElementById('editUserNama') ? document.getElementById('editUserNama').value.trim() : email;
+  if (!email) return;
+  closeModalEditUser();
+  unsuspendUserAction(email, name);
+}
+
+function openOwnerSecurityConfigModal() {
+  if (!isSuperAdmin()) return;
+  var waInp = document.getElementById('ownerSecWaInput');
+  var keyInp = document.getElementById('ownerSecGeminiKeyInput');
+  var stEl = document.getElementById('ownerSecGeminiStatus');
+  if (keyInp) keyInp.value = '';
+  if (stEl) stEl.innerText = 'Memeriksa...';
+  openModal('modalOwnerSecurityConfig');
+  callBackend('getOwnerSecurityConfig', [currentUserSession], function(res) {
+    if (res && res.success) {
+      if (waInp) waInp.value = res.ownerContactWa || '';
+      if (stEl) {
+        stEl.innerText = res.hasGeminiKey ? ('Terpasang (' + res.geminiKeyMasked + ')') : 'Belum diatur';
+        stEl.className = res.hasGeminiKey ? 'text-[10px] text-emerald-400 font-bold' : 'text-[10px] text-amber-400';
+      }
+    }
+  });
+}
+
+function handleSaveOwnerSecurityConfig(e) {
+  if (e && e.preventDefault) e.preventDefault();
+  var waVal = document.getElementById('ownerSecWaInput') ? document.getElementById('ownerSecWaInput').value.trim() : '';
+  var keyVal = document.getElementById('ownerSecGeminiKeyInput') ? document.getElementById('ownerSecGeminiKeyInput').value.trim() : '';
+  var btn = document.getElementById('btnSaveOwnerSecConfig');
+  if (btn) { btn.disabled = true; btn.innerText = 'Menyimpan...'; }
+
+  callBackend('saveOwnerSecurityConfig', [{ ownerContactWa: waVal, geminiApiKey: keyVal }, currentUserSession], function(res) {
+    if (btn) { btn.disabled = false; btn.innerHTML = '<i class="fa-solid fa-floppy-disk"></i> Simpan Pengaturan'; }
+    if (res && res.success) {
+      closeModal('modalOwnerSecurityConfig');
+      showToast(res.message || 'Pengaturan berhasil disimpan!', 'success');
+    } else {
+      showToast((res && res.message) || 'Gagal menyimpan pengaturan.', 'error');
+    }
+  }, function(err) {
+    if (btn) { btn.disabled = false; btn.innerHTML = '<i class="fa-solid fa-floppy-disk"></i> Simpan Pengaturan'; }
+    showToast('Kesalahan server: ' + ((err && err.message) || err), 'error');
   });
 }
 

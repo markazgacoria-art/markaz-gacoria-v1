@@ -56,6 +56,43 @@ var WORK_REPORT_CATEGORIES = [
   'Menjadwalkan'
 ];
 
+var COL_USER = {
+  ID: 0,
+  NAMA: 1,
+  NIK: 2,
+  NO_WA: 3,
+  ALAMAT: 4,
+  EMAIL: 5,
+  PASSWORD: 6,
+  ROLE: 7,
+  FOTO_PROFIL: 8,
+  FOTO_KTP: 9,
+  BANK: 10,
+  NO_REK: 11,
+  ATAS_NAMA: 12,
+  TGL_GABUNG: 13,
+  STATUS_AKUN: 14,
+  SALAH_COUNT: 15,
+  IZIN_JSON: 16,
+  LAST_LOGIN: 17,
+  STATUS_HAPUS: 18,
+  FOTO_WAJAH: 19,
+  FOTO_SELFIE_KTP: 20,
+  KYC_STATUS: 21,
+  KYC_DEADLINE: 22,
+  LAST_ACTIVE_AT: 23,
+  KYC_VERIFIED_AT: 24,
+  KYC_NOTE: 25
+};
+
+var USER_KYC_HEADERS_ = [
+  'Foto_Wajah_URL', 'Foto_Selfie_KTP_URL', 'KYC_Status', 'KYC_Deadline_At',
+  'Last_Active_At', 'KYC_Verified_At', 'KYC_Note'
+];
+
+var FORTY_EIGHT_HOURS_MS_ = 48 * 60 * 60 * 1000;
+var KYC_GRACE_DAYS_ = 30;
+
 /**
  * ================================================================================
  * 🌐 WEB APP ROUTING
@@ -64,7 +101,9 @@ var WORK_REPORT_CATEGORIES = [
 var PUBLIC_API_WHITELIST_ = {
   ping: true,
   loginUser: true,
-  loginWithGoogle: true,
+  verifyLoginOtp: true,
+  resendLoginOtp: true,
+  getPublicOwnerContact: true,
   logoutUser: true,
   syncUserSession: true,
   requestRegistrationOtp: true,
@@ -75,10 +114,16 @@ var PUBLIC_API_WHITELIST_ = {
   getUsersData: true,
   approveUser: true,
   unfreezeUser: true,
+  unsuspendUser: true,
   updateUserPermissions: true,
   deleteUser: true,
   updateUserProfile: true,
   updateMyProfileAndPassword: true,
+  submitUserKyc: true,
+  scanKtpWithGemini: true,
+  reviewUserKyc: true,
+  getOwnerSecurityConfig: true,
+  saveOwnerSecurityConfig: true,
   getActivityLogs: true,
   getDashboardSummary: true,
   quickUpdateUpload: true,
@@ -532,6 +577,222 @@ function clearAuthMemoryCache_() {
   _REQUEST_AUTH_CACHE_ = {};
 }
 
+function ensureUserKycColumns_(sheet) {
+  if (!sheet) return;
+  try {
+    var lastCol = sheet.getLastColumn();
+    if (lastCol > 0 && lastCol < 26) {
+      var missingCount = 26 - lastCol;
+      var missingHeaders = USER_KYC_HEADERS_.slice(USER_KYC_HEADERS_.length - missingCount);
+      if (missingHeaders.length > 0) {
+        sheet.getRange(1, lastCol + 1, 1, missingHeaders.length).setValues([missingHeaders]);
+        sheet.getRange(1, lastCol + 1, 1, missingHeaders.length)
+          .setFontWeight('bold')
+          .setBackground('#064e3b')
+          .setFontColor('#34d399')
+          .setHorizontalAlignment('center');
+      }
+    }
+  } catch (e) {}
+}
+
+function readUserRowsSafe_(sheet) {
+  if (!sheet) return [];
+  ensureUserKycColumns_(sheet);
+  var lastRow = sheet.getLastRow();
+  if (lastRow <= 1) return [];
+  return sheet.getRange(2, 1, lastRow - 1, 26).getDisplayValues();
+}
+
+function isSuperAdminRoleStr_(roleStr) {
+  var cleanRole = (roleStr || '').toString().trim().toUpperCase().replace(/[\s_]/g, '');
+  return cleanRole === 'SUPERADMIN' || cleanRole === 'OWNER' || cleanRole === 'SUPER' || cleanRole === 'ADMIN';
+}
+
+function parseWibTimestampMs_(val) {
+  var s = (val || '').toString().trim();
+  if (!s || s === '-') return 0;
+  if (/^\d{10,13}$/.test(s)) {
+    var num = parseInt(s, 10);
+    return s.length === 10 ? num * 1000 : num;
+  }
+  // Format dd/MM/yyyy HH:mm:ss
+  var mDmy = s.match(/^(\d{2})\/(\d{2})\/(\d{4})(?:\s+(\d{2}):(\d{2})(?::(\d{2}))?)?$/);
+  if (mDmy) {
+    return Date.UTC(
+      parseInt(mDmy[3], 10),
+      parseInt(mDmy[2], 10) - 1,
+      parseInt(mDmy[1], 10),
+      parseInt(mDmy[4] || '0', 10) - 7,
+      parseInt(mDmy[5] || '0', 10),
+      parseInt(mDmy[6] || '0', 10)
+    );
+  }
+  // Format yyyy-MM-dd [HH:mm:ss]
+  var mYmd = s.match(/^(\d{4})-(\d{2})-(\d{2})(?:[T\s](\d{2}):(\d{2})(?::(\d{2}))?)?$/);
+  if (mYmd) {
+    return Date.UTC(
+      parseInt(mYmd[1], 10),
+      parseInt(mYmd[2], 10) - 1,
+      parseInt(mYmd[3], 10),
+      parseInt(mYmd[4] || '0', 10) - 7,
+      parseInt(mYmd[5] || '0', 10),
+      parseInt(mYmd[6] || '0', 10)
+    );
+  }
+  var parsed = Date.parse(s);
+  return isNaN(parsed) ? 0 : parsed;
+}
+
+function addDaysYmdWIB_(baseMs, days) {
+  var target = new Date((baseMs || Date.now()) + (days * 86400000));
+  return Utilities.formatDate(target, 'Asia/Jakarta', 'yyyy-MM-dd');
+}
+
+function getDeadlineEndWibMs_(ymdStr) {
+  var m = (ymdStr || '').toString().trim().match(/^(\d{4})-(\d{2})-(\d{2})$/);
+  if (!m) return 0;
+  return Date.UTC(parseInt(m[1], 10), parseInt(m[2], 10) - 1, parseInt(m[3], 10), 23 - 7, 59, 59);
+}
+
+function isUserKycComplete_(r) {
+  if (!r) return false;
+  if (isSuperAdminRoleStr_(r[COL_USER.ROLE])) return true;
+  var kycSt = (r[COL_USER.KYC_STATUS] || '').toString().trim().toLowerCase();
+  var hasAlamat = !!(r[COL_USER.ALAMAT] || '').toString().trim();
+  var hasKtp = !!(r[COL_USER.FOTO_KTP] || '').toString().trim();
+  var hasWajah = !!(r[COL_USER.FOTO_WAJAH] || '').toString().trim();
+  var hasSelfieKtp = !!(r[COL_USER.FOTO_SELFIE_KTP] || '').toString().trim();
+  return kycSt === 'terverifikasi' && hasAlamat && hasKtp && hasWajah && hasSelfieKtp;
+}
+
+function buildUserKycSummary_(r) {
+  var isSuper = isSuperAdminRoleStr_(r[COL_USER.ROLE]);
+  var complete = isUserKycComplete_(r);
+  var kycStatus = (r[COL_USER.KYC_STATUS] || '').toString().trim() || (isSuper ? 'Terverifikasi' : 'Belum Lengkap');
+  var deadlineAt = (r[COL_USER.KYC_DEADLINE] || '').toString().trim();
+  var daysRemaining = KYC_GRACE_DAYS_;
+  var isOverdue = false;
+
+  if (!isSuper && !complete && deadlineAt) {
+    var endMs = getDeadlineEndWibMs_(deadlineAt);
+    if (endMs > 0) {
+      var diffMs = endMs - Date.now();
+      daysRemaining = Math.max(0, Math.ceil(diffMs / 86400000));
+      isOverdue = diffMs < 0;
+    }
+  } else if (complete || isSuper) {
+    daysRemaining = 0;
+  }
+
+  return {
+    kycComplete: complete,
+    kycStatus: complete ? 'Terverifikasi' : kycStatus,
+    kycDeadlineAt: deadlineAt,
+    daysRemaining: daysRemaining,
+    isOverdue: isOverdue,
+    hasAlamat: !!(r[COL_USER.ALAMAT] || '').toString().trim(),
+    hasFotoWajah: !!(r[COL_USER.FOTO_WAJAH] || '').toString().trim(),
+    hasFotoKtp: !!(r[COL_USER.FOTO_KTP] || '').toString().trim(),
+    hasFotoSelfieKtp: !!(r[COL_USER.FOTO_SELFIE_KTP] || '').toString().trim(),
+    kycVerifiedAt: (r[COL_USER.KYC_VERIFIED_AT] || '').toString().trim(),
+    kycNote: (r[COL_USER.KYC_NOTE] || '').toString().trim()
+  };
+}
+
+function getOwnerWaInfo_() {
+  var rawWa = '';
+  try {
+    rawWa = (PropertiesService.getScriptProperties().getProperty('OWNER_CONTACT_WA') || '').toString().trim();
+  } catch (e) {}
+
+  if (!rawWa) {
+    try {
+      var sheet = getUserSheet_();
+      var rows = readUserRowsSafe_(sheet);
+      for (var i = 0; i < rows.length; i++) {
+        if ((rows[i][COL_USER.STATUS_HAPUS] || '').toString().toLowerCase() === 'deleted') continue;
+        if (isSuperAdminRoleStr_(rows[i][COL_USER.ROLE]) && (rows[i][COL_USER.NO_WA] || '').toString().trim()) {
+          rawWa = rows[i][COL_USER.NO_WA].toString().trim();
+          break;
+        }
+      }
+    } catch (e2) {}
+  }
+
+  var digits = rawWa.replace(/[^0-9]/g, '');
+  if (digits.charAt(0) === '0') digits = '62' + digits.slice(1);
+  return {
+    raw: rawWa || '-',
+    waUrl: digits ? ('https://wa.me/' + digits + '?text=' + encodeURIComponent('Halo Owner DoGo Studio, akun saya terkena suspen batas KYC 30 hari. Mohon bantuannya untuk mengaktifkan kembali.')) : ''
+  };
+}
+
+function getPublicOwnerContact() {
+  var info = getOwnerWaInfo_();
+  return { success: true, waDisplay: info.raw, waUrl: info.waUrl };
+}
+
+function backfillOrCheckKycRow_(sheet, r, rowNum) {
+  if (!sheet || !r) return false;
+  var email = (r[COL_USER.EMAIL] || '').toString().trim().toLowerCase();
+  var stNorm = (r[COL_USER.STATUS_AKUN] || 'Aktif').toString().trim().toLowerCase();
+  if (stNorm === 'suspended' || stNorm === 'suspen') return true;
+  if (isSuperAdminRoleStr_(r[COL_USER.ROLE])) return false;
+  if (stNorm === 'pending' || stNorm === 'pending approval' || stNorm === 'dibekukan' || stNorm === 'frozen') return false;
+
+  if (!isUserKycComplete_(r)) {
+    var deadlineAt = (r[COL_USER.KYC_DEADLINE] || '').toString().trim();
+    if (!deadlineAt) {
+      deadlineAt = addDaysYmdWIB_(Date.now(), KYC_GRACE_DAYS_);
+      r[COL_USER.KYC_DEADLINE] = deadlineAt;
+      sheet.getRange(rowNum, COL_USER.KYC_DEADLINE + 1).setValue(deadlineAt);
+      if (!(r[COL_USER.KYC_STATUS] || '').toString().trim()) {
+        r[COL_USER.KYC_STATUS] = 'Belum Lengkap';
+        sheet.getRange(rowNum, COL_USER.KYC_STATUS + 1).setValue('Belum Lengkap');
+      }
+      SpreadsheetApp.flush();
+    }
+    var endMs = getDeadlineEndWibMs_(deadlineAt);
+    if (endMs > 0 && Date.now() > endMs) {
+      r[COL_USER.STATUS_AKUN] = 'Suspended';
+      r[COL_USER.KYC_STATUS] = 'Terlambat (Suspen 30 Hari)';
+      sheet.getRange(rowNum, COL_USER.STATUS_AKUN + 1).setValue('Suspended');
+      sheet.getRange(rowNum, COL_USER.KYC_STATUS + 1).setValue('Terlambat (Suspen 30 Hari)');
+      SpreadsheetApp.flush();
+      revokeAllSessionsForEmail_(email);
+      clearAuthMemoryCache_();
+      logActivity_('Auto-Suspen KYC 30 Hari', email, 'Akun disuspen otomatis karena melewati batas verifikasi 30 hari (' + deadlineAt + ')', null);
+      return true;
+    }
+  }
+  return false;
+}
+
+function enforceAllUsersKycDeadlines_() {
+  try {
+    var sheet = getUserSheet_();
+    var rows = readUserRowsSafe_(sheet);
+    for (var i = 0; i < rows.length; i++) {
+      if ((rows[i][COL_USER.STATUS_HAPUS] || '').toString().toLowerCase() === 'deleted') continue;
+      backfillOrCheckKycRow_(sheet, rows[i], i + 2);
+    }
+  } catch (e) {}
+}
+
+function touchUserActiveAtThrottled_(sheet, rowNum, email) {
+  try {
+    var cleanEmail = (email || '').toString().trim().toLowerCase();
+    if (!sheet || !rowNum || !cleanEmail) return;
+    var pingKey = 'PING_ACT_' + sha256Hex_(cleanEmail).slice(0, 18);
+    var cache = CacheService.getScriptCache();
+    if (cache.get(pingKey)) return;
+    var nowStr = Utilities.formatDate(new Date(), 'Asia/Jakarta', 'dd/MM/yyyy HH:mm:ss');
+    sheet.getRange(rowNum, COL_USER.LAST_ACTIVE_AT + 1).setValue(nowStr);
+    cache.put(pingKey, '1', 900); // Update sheet maks 1x per 15 menit
+  } catch (e) {}
+}
+
 function createServerSession_(email, userId) {
   var cleanEmail = (email || '').toString().trim().toLowerCase();
   var token = Utilities.getUuid() + '-' + sha256Hex_(Utilities.getUuid() + ':' + cleanEmail + ':' + Date.now()).slice(0, 16);
@@ -652,48 +913,58 @@ function authenticateSession(clientSession) {
     } catch (e) {}
   }
 
-  // Selalu baca identitas, role, status, & izin terbaru langsung dari DataUsers
+  // Selalu baca identitas, role, status, KYC, & izin terbaru langsung dari DataUsers
   var sheet = getUserSheet_();
-  var lastRow = sheet.getLastRow();
-  if (lastRow <= 1) return null;
+  var data = readUserRowsSafe_(sheet);
+  if (!data || data.length === 0) return null;
 
-  var data = sheet.getRange(2, 1, lastRow - 1, 19).getDisplayValues();
   for (var i = 0; i < data.length; i++) {
     var r = data[i];
-    var email = (r[5] || '').toString().trim().toLowerCase();
+    var email = (r[COL_USER.EMAIL] || '').toString().trim().toLowerCase();
     if (email === sessMeta.e) {
-      var statusAkun = (r[14] || 'Aktif').toString().trim();
+      var statusAkun = (r[COL_USER.STATUS_AKUN] || 'Aktif').toString().trim();
       var stNorm = statusAkun.toLowerCase();
-      var statusHapus = (r[18] || 'Active').toString().trim().toLowerCase();
+      var statusHapus = (r[COL_USER.STATUS_HAPUS] || 'Active').toString().trim().toLowerCase();
 
       if (statusHapus === 'deleted') return null;
       if (stNorm === 'pending' || stNorm === 'pending approval') return null;
       if (stNorm === 'dibekukan' || stNorm === 'frozen' || stNorm === 'locked') return null;
+      if (stNorm === 'suspended' || stNorm === 'suspen') return null;
 
-      var roleRaw = (r[7] || 'Pengguna').toString().trim().toUpperCase();
+      if (backfillOrCheckKycRow_(sheet, r, i + 2)) {
+        return null;
+      }
+
+      touchUserActiveAtThrottled_(sheet, i + 2, email);
+
+      var roleRaw = (r[COL_USER.ROLE] || 'Pengguna').toString().trim().toUpperCase();
       var cleanRole = roleRaw.replace(/[\s_]/g, '');
       var normalizedRole = (cleanRole === 'SUPERADMIN' || cleanRole === 'OWNER' || cleanRole === 'SUPER' || cleanRole === 'ADMIN') ? 'SUPER_ADMIN' : 'TIM';
-      var userPerms = normalizeUserPermsObj_((r[16] || '{}').toString().trim());
+      var userPerms = normalizeUserPermsObj_((r[COL_USER.IZIN_JSON] || '{}').toString().trim());
+      var kycMeta = buildUserKycSummary_(r);
 
       var verifiedObj = {
         token: token,
-        id: r[0],
-        userId: r[0],
-        nama: (r[1] || '').toString().trim() || email,
-        nik: (r[2] || '').toString().trim(),
-        noWa: r[3] || '',
-        alamat: r[4] || '',
+        id: r[COL_USER.ID],
+        userId: r[COL_USER.ID],
+        nama: (r[COL_USER.NAMA] || '').toString().trim() || email,
+        nik: (r[COL_USER.NIK] || '').toString().trim(),
+        noWa: r[COL_USER.NO_WA] || '',
+        alamat: r[COL_USER.ALAMAT] || '',
         email: email,
         role: normalizedRole,
-        displayRole: r[7] || 'Pengguna',
-        fotoProfil: r[8] || '',
-        fotoKtpUrl: r[9] || '',
-        namaBank: r[10] || '',
-        bank: r[10] || '',
-        noRekening: r[11] || '',
-        atasNama: r[12] || '',
+        displayRole: r[COL_USER.ROLE] || 'Pengguna',
+        fotoProfil: r[COL_USER.FOTO_PROFIL] || '',
+        fotoKtpUrl: r[COL_USER.FOTO_KTP] || '',
+        fotoWajahUrl: r[COL_USER.FOTO_WAJAH] || '',
+        fotoSelfieKtpUrl: r[COL_USER.FOTO_SELFIE_KTP] || '',
+        namaBank: r[COL_USER.BANK] || '',
+        bank: r[COL_USER.BANK] || '',
+        noRekening: r[COL_USER.NO_REK] || '',
+        atasNama: r[COL_USER.ATAS_NAMA] || '',
         status: statusAkun,
-        izinAkses: userPerms
+        izinAkses: userPerms,
+        kycMeta: kycMeta
       };
       _REQUEST_AUTH_CACHE_[token] = { ts: Date.now(), user: verifiedObj };
       return verifiedObj;
@@ -887,14 +1158,96 @@ function generateId_(prefix, sheet) {
  * ================================================================================
  */
 
+function buildUserSessionPayload_(r, sessionToken, email) {
+  var roleRaw = (r[COL_USER.ROLE] || 'Pengguna').toString().trim();
+  var cleanRole = roleRaw.toUpperCase().replace(/[\s_]/g, '');
+  var normalizedRole = (cleanRole === 'SUPERADMIN' || cleanRole === 'OWNER' || cleanRole === 'SUPER' || cleanRole === 'ADMIN') ? 'SUPER_ADMIN' : 'TIM';
+  var userPerms = normalizeUserPermsObj_((r[COL_USER.IZIN_JSON] || '{}').toString().trim());
+  var kycMeta = buildUserKycSummary_(r);
+
+  return {
+    token: sessionToken,
+    id: r[COL_USER.ID],
+    userId: r[COL_USER.ID],
+    nama: (r[COL_USER.NAMA] || '').toString().trim() || email,
+    nik: (r[COL_USER.NIK] || '').toString().trim(),
+    noWa: r[COL_USER.NO_WA] || '',
+    alamat: r[COL_USER.ALAMAT] || '',
+    email: email,
+    role: normalizedRole,
+    displayRole: roleRaw || 'Pengguna',
+    fotoProfil: r[COL_USER.FOTO_PROFIL] || '',
+    fotoKtpUrl: r[COL_USER.FOTO_KTP] || '',
+    fotoWajahUrl: r[COL_USER.FOTO_WAJAH] || '',
+    fotoSelfieKtpUrl: r[COL_USER.FOTO_SELFIE_KTP] || '',
+    namaBank: r[COL_USER.BANK] || '',
+    bank: r[COL_USER.BANK] || '',
+    noRekening: r[COL_USER.NO_REK] || '',
+    atasNama: r[COL_USER.ATAS_NAMA] || '',
+    status: (r[COL_USER.STATUS_AKUN] || 'Aktif').toString().trim(),
+    izinAkses: userPerms,
+    kycMeta: kycMeta
+  };
+}
+
+function sendLoginOtpEmail_(email, nama, reason) {
+  var cache = CacheService.getScriptCache();
+  var emailHash = sha256Hex_(email).slice(0, 24);
+  var cdKey = 'LOGIN_OTP_CD_' + emailHash;
+  var otpKey = 'LOGIN_OTP_' + emailHash;
+
+  if (cache.get(cdKey) && cache.get(otpKey)) {
+    return {
+      ok: true,
+      reusedCooldown: true,
+      message: 'Kode OTP sudah dikirim baru-baru ini ke ' + email + '. Periksa inbox / spam Anda.'
+    };
+  }
+
+  var otpCode = String(Math.floor(100000 + Math.random() * 900000));
+  var reasonText = reason === 'inactivity_48h'
+    ? 'Aplikasi tidak diakses selama lebih dari 48 jam sehingga diperlukan verifikasi OTP keamanan.'
+    : 'Verifikasi login akun baru menggunakan kode OTP 6-digit sekali pakai.';
+
+  try {
+    MailApp.sendEmail({
+      to: email,
+      subject: '[DoGo Studio V1] Kode OTP Verifikasi Masuk Akun',
+      htmlBody: '<div style="font-family:sans-serif;padding:24px;background:#07120b;color:#f1f5f9;border-radius:12px;max-width:540px;border:1px solid rgba(0,230,118,0.25);">' +
+        '<h2 style="color:#00e676;margin-top:0;">DoGo Studio V1 - Verifikasi Keamanan Masuk</h2>' +
+        '<p>Halo <strong>' + (nama || email) + '</strong>,</p>' +
+        '<p>' + reasonText + ' Masukkan kode OTP 6-digit berikut (berlaku 10 menit):</p>' +
+        '<div style="font-size:32px;font-weight:900;letter-spacing:6px;color:#00e676;background:#0a1710;padding:14px 24px;border-radius:8px;display:inline-block;border:1px solid #00e676;margin:12px 0;">' + otpCode + '</div>' +
+        '<p style="font-size:12px;color:#94a3b8;margin-top:16px;">Jangan bagikan kode OTP ini kepada siapa pun. Jika bukan Anda yang mencoba login, segera ganti kata sandi Anda.</p>' +
+        '</div>'
+    });
+  } catch (mailErr) {
+    logActivity_('OTP Login Gagal Kirim', email, 'Gagal kirim OTP login: ' + mailErr.message, null);
+    return { ok: false, message: 'Gagal mengirim email OTP ke ' + email + ': ' + mailErr.message };
+  }
+
+  cache.put(otpKey, JSON.stringify({
+    hash: sha256Hex_(email + ':LOGIN_OTP:' + otpCode),
+    attempts: 0
+  }), 600);
+  cache.put(cdKey, '1', 60);
+  logActivity_('Kirim OTP Login', email, 'OTP verifikasi masuk dikirim (' + reason + ')', null);
+
+  return {
+    ok: true,
+    reusedCooldown: false,
+    message: 'Kode OTP 6-digit telah dikirim ke ' + email + '. Cek Kotak Masuk atau Spam.'
+  };
+}
+
 function loginUser(credentials) {
   var lock = LockService.getScriptLock();
   try {
     lock.waitLock(8000);
     credentials = credentials || {};
     var sheet = getUserSheet_();
-    var lastRow = sheet.getLastRow();
-    if (lastRow <= 1) {
+    var data = readUserRowsSafe_(sheet);
+    if (!data || data.length === 0) {
       return { success: false, message: 'Database user masih kosong.' };
     }
 
@@ -904,34 +1257,29 @@ function loginUser(credentials) {
       return { success: false, message: 'Email dan kata sandi wajib diisi.' };
     }
 
-    var data = sheet.getRange(2, 1, lastRow - 1, 19).getDisplayValues();
-
     for (var i = 0; i < data.length; i++) {
       var r = data[i];
-      var statusHapus = (r[18] || 'Active').toString().trim().toLowerCase();
+      var statusHapus = (r[COL_USER.STATUS_HAPUS] || 'Active').toString().trim().toLowerCase();
       if (statusHapus === 'deleted') continue;
 
-      var email = (r[5] || '').toString().trim().toLowerCase(); // Email_Login
-      var pass = (r[6] || '').toString().trim();               // Password
-      var nama = (r[1] || '').toString().trim();               // Nama_Lengkap_KTP
-      var role = (r[7] || 'Pengguna').toString().trim().toUpperCase(); // Role
-      var statusAkun = (r[14] || 'Aktif').toString().trim();   // Status_Akun
-      var failCount = parseInt((r[15] || '0').toString().replace(/[^0-9]/g, ''), 10) || 0; // Salah_Password_Count
-      var izinJson = (r[16] || '{}').toString().trim();        // Izin_Akses_JSON
+      var email = (r[COL_USER.EMAIL] || '').toString().trim().toLowerCase();
+      var pass = (r[COL_USER.PASSWORD] || '').toString().trim();
+      var nama = (r[COL_USER.NAMA] || '').toString().trim();
+      var role = (r[COL_USER.ROLE] || 'Pengguna').toString().trim().toUpperCase();
+      var statusAkun = (r[COL_USER.STATUS_AKUN] || 'Aktif').toString().trim();
+      var failCount = parseInt((r[COL_USER.SALAH_COUNT] || '0').toString().replace(/[^0-9]/g, ''), 10) || 0;
 
       var matchUser = (email === userInput) || (nama.toLowerCase() === userInput);
       if (matchUser) {
         var stNorm = statusAkun.toLowerCase();
 
-        // 1. Cek Status Akun: Pending Approval Gate
         if (stNorm === 'pending' || stNorm === 'pending approval') {
           return {
             success: false,
-            message: 'Akun Anda masih berstatus PENDING APPROVAL. Silakan hubungi Admin untuk persetujuan akun sebelum dapat masuk.'
+            message: 'Akun Anda masih berstatus PENDING APPROVAL. Silakan hubungi Admin/Owner untuk persetujuan akun.'
           };
         }
 
-        // 2. Cek Status Akun: Dibekukan (Frozen)
         if (stNorm === 'dibekukan' || stNorm === 'frozen' || stNorm === 'locked') {
           return {
             success: false,
@@ -939,54 +1287,97 @@ function loginUser(credentials) {
           };
         }
 
-        // 3. Verifikasi Password (SHA-256 salted + auto-migrasi legacy plaintext)
+        if (backfillOrCheckKycRow_(sheet, r, i + 2)) {
+          var ownerWa = getOwnerWaInfo_();
+          return {
+            success: false,
+            suspended: true,
+            ownerWaDisplay: ownerWa.raw,
+            ownerWaUrl: ownerWa.waUrl,
+            message: 'Akun Anda terkena SUSPEN karena belum melengkapi verifikasi identitas (KYC) dalam batas 30 hari. Wajib hubungi Owner (' + ownerWa.raw + ') untuk mengaktifkan kembali.'
+          };
+        }
+
+        var isTargetAdmin = isSuperAdminRoleStr_(role);
+        var emailHash = sha256Hex_(email).slice(0, 24);
+        var admLockKey = 'ADM_LOCK_' + emailHash;
+        if (isTargetAdmin && CacheService.getScriptCache().get(admLockKey)) {
+          return {
+            success: false,
+            message: 'Percobaan sandi akun Owner/Admin dibatasi sementara (15 menit) demi mencegah penyalahgunaan. Gunakan fitur Lupa Sandi OTP jika lupa password.'
+          };
+        }
+
         if (verifyUserPassword_(passInput, pass, sheet, i + 2)) {
-          sheet.getRange(i + 2, 16).setValue(0);
+          var lastActiveRaw = (r[COL_USER.LAST_ACTIVE_AT] || '').toString().trim() || (r[COL_USER.LAST_LOGIN] || '').toString().trim();
+          var lastActiveMs = parseWibTimestampMs_(lastActiveRaw);
+          var needOtp = (!lastActiveMs) || ((Date.now() - lastActiveMs) >= FORTY_EIGHT_HOURS_MS_);
+
+          if (needOtp) {
+            var reason = lastActiveMs ? 'inactivity_48h' : 'first_login';
+            var otpSend = sendLoginOtpEmail_(email, nama, reason);
+            if (!otpSend.ok) {
+              return { success: false, message: otpSend.message };
+            }
+            return {
+              success: false,
+              requireLoginOtp: true,
+              email: email,
+              reason: reason,
+              message: otpSend.message
+            };
+          }
+
           var nowStr = Utilities.formatDate(new Date(), 'Asia/Jakarta', 'dd/MM/yyyy HH:mm:ss');
-          sheet.getRange(i + 2, 18).setValue(nowStr); // Last_Login
+          sheet.getRange(i + 2, COL_USER.SALAH_COUNT + 1).setValue(0);
+          sheet.getRange(i + 2, COL_USER.LAST_LOGIN + 1).setValue(nowStr);
+          sheet.getRange(i + 2, COL_USER.LAST_ACTIVE_AT + 1).setValue(nowStr);
           SpreadsheetApp.flush();
 
-          var cleanRole = role.replace(/[\s_]/g, '');
-          var normalizedRole = (cleanRole === 'SUPERADMIN' || cleanRole === 'OWNER' || cleanRole === 'SUPER' || cleanRole === 'ADMIN') ? 'SUPER_ADMIN' : 'TIM';
-          var userPerms = normalizeUserPermsObj_(izinJson);
-          var sessionToken = createServerSession_(email, r[0]);
-
-          var sessionUser = {
-            token: sessionToken,
-            id: r[0],
-            userId: r[0],
-            nama: nama || email,
-            nik: (r[2] || '').toString().trim(),
-            noWa: r[3] || '',
-            alamat: r[4] || '',
-            email: email,
-            role: normalizedRole,
-            displayRole: r[7] || 'Pengguna',
-            fotoProfil: r[8] || '',
-            fotoKtpUrl: r[9] || '',
-            namaBank: r[10] || '',
-            bank: r[10] || '',
-            noRekening: r[11] || '',
-            atasNama: r[12] || '',
-            status: statusAkun,
-            izinAkses: userPerms
-          };
-
-          logActivity_('Login Berhasil', email, 'Masuk ke studio (' + normalizedRole + ')', sessionUser);
+          var sessionToken = createServerSession_(email, r[COL_USER.ID]);
+          var sessionUser = buildUserSessionPayload_(r, sessionToken, email);
+          logActivity_('Login Berhasil', email, 'Masuk ke studio (' + sessionUser.role + ')', sessionUser);
 
           return {
             success: true,
             user: sessionUser,
             userSession: sessionUser,
-            permissions: userPerms
+            permissions: sessionUser.izinAkses
           };
         } else {
-          // 4. Password Salah -> Increment Counter Brute Force
+          if (isTargetAdmin) {
+            var admFailKey = 'ADM_FAIL_' + emailHash;
+            var curFails = parseInt(CacheService.getScriptCache().get(admFailKey) || '0', 10) || 0;
+            curFails++;
+            if (curFails >= 5) {
+              CacheService.getScriptCache().put(admLockKey, '1', 900); // 15 menit cooldown
+              CacheService.getScriptCache().remove(admFailKey);
+              logActivity_('Peringatan Keamanan Owner', email, '5x salah sandi login pada akun Admin (cooldown 15 menit diaktifkan, akun tidak dibekukan).', null);
+              try {
+                MailApp.sendEmail({
+                  to: email,
+                  subject: '[PERINGATAN KEAMANAN DoGo Studio] 5x Percobaan Sandi Salah',
+                  htmlBody: '<p>Terdeteksi 5x percobaan kata sandi salah pada akun Admin/Owner Anda (' + email + '). Demi mencegah penguncian akun (DoS), form login dibatasi sementara selama 15 menit tanpa membekukan akun Anda.</p>'
+                });
+              } catch (eMail) {}
+              return {
+                success: false,
+                message: '5x kata sandi salah! Akses tebakan dibatasi sementara 15 menit demi keamanan Owner.'
+              };
+            } else {
+              CacheService.getScriptCache().put(admFailKey, String(curFails), 900);
+              return {
+                success: false,
+                message: 'Kata sandi salah! Sisa percobaan sebelum pembatasan sementara (15 menit): ' + (5 - curFails) + ' kali.'
+              };
+            }
+          }
+
           failCount++;
-          sheet.getRange(i + 2, 16).setValue(failCount);
+          sheet.getRange(i + 2, COL_USER.SALAH_COUNT + 1).setValue(failCount);
 
           if (failCount >= 5) {
-            sheet.getRange(i + 2, 15).setValue('Dibekukan');
+            sheet.getRange(i + 2, COL_USER.STATUS_AKUN + 1).setValue('Dibekukan');
             SpreadsheetApp.flush();
             revokeAllSessionsForEmail_(email);
             logActivity_('Akun Dibekukan', email, 'Akun dibekukan otomatis karena 5x salah password berturut-turut.', null);
@@ -1010,6 +1401,122 @@ function loginUser(credentials) {
     return { success: false, message: 'Gagal login: ' + err.message };
   } finally {
     try { lock.releaseLock(); } catch (e) {}
+  }
+}
+
+function verifyLoginOtp(payload) {
+  var lock = LockService.getScriptLock();
+  try {
+    lock.waitLock(8000);
+    payload = payload || {};
+    var email = (payload.email || '').toString().trim().toLowerCase();
+    var otp = (payload.otp || '').toString().trim();
+    if (!email || !otp || otp.length !== 6) {
+      return { success: false, message: 'Masukkan 6 digit kode OTP yang dikirim ke email Anda.' };
+    }
+
+    var cache = CacheService.getScriptCache();
+    var emailHash = sha256Hex_(email).slice(0, 24);
+    var otpKey = 'LOGIN_OTP_' + emailHash;
+    var rawOtp = cache.get(otpKey);
+    if (!rawOtp) {
+      return { success: false, message: 'Sesi OTP masuk telah kedaluwarsa. Silakan masukkan email & kata sandi ulang.' };
+    }
+
+    var otpObj = JSON.parse(rawOtp);
+    var expectedHash = sha256Hex_(email + ':LOGIN_OTP:' + otp);
+    if (!constantTimeEquals_(expectedHash, otpObj.hash)) {
+      otpObj.attempts = (otpObj.attempts || 0) + 1;
+      if (otpObj.attempts >= 5) {
+        cache.remove(otpKey);
+        return { success: false, message: 'Terlalu banyak percobaan OTP salah! Silakan login ulang untuk meminta kode OTP baru.' };
+      }
+      cache.put(otpKey, JSON.stringify(otpObj), 600);
+      return { success: false, message: 'Kode OTP salah! Sisa percobaan: ' + (5 - otpObj.attempts) + ' kali.' };
+    }
+
+    var sheet = getUserSheet_();
+    var data = readUserRowsSafe_(sheet);
+    for (var i = 0; i < data.length; i++) {
+      var r = data[i];
+      if ((r[COL_USER.STATUS_HAPUS] || '').toString().toLowerCase() === 'deleted') continue;
+      if ((r[COL_USER.EMAIL] || '').toString().trim().toLowerCase() === email) {
+        var stNorm = (r[COL_USER.STATUS_AKUN] || 'Aktif').toString().trim().toLowerCase();
+        if (stNorm === 'pending' || stNorm === 'pending approval') {
+          return { success: false, message: 'Akun berstatus Pending Approval.' };
+        }
+        if (stNorm === 'dibekukan' || stNorm === 'frozen' || stNorm === 'locked') {
+          return { success: false, message: 'Akun Anda dibekukan. Hubungi Super Admin.' };
+        }
+        if (backfillOrCheckKycRow_(sheet, r, i + 2)) {
+          var ownerWa = getOwnerWaInfo_();
+          return {
+            success: false,
+            suspended: true,
+            ownerWaDisplay: ownerWa.raw,
+            ownerWaUrl: ownerWa.waUrl,
+            message: 'Akun Anda terkena SUSPEN karena belum melengkapi KYC dalam 30 hari. Hubungi Owner (' + ownerWa.raw + ').'
+          };
+        }
+
+        cache.remove(otpKey);
+        cache.remove('LOGIN_OTP_CD_' + emailHash);
+
+        var nowStr = Utilities.formatDate(new Date(), 'Asia/Jakarta', 'dd/MM/yyyy HH:mm:ss');
+        sheet.getRange(i + 2, COL_USER.SALAH_COUNT + 1).setValue(0);
+        sheet.getRange(i + 2, COL_USER.LAST_LOGIN + 1).setValue(nowStr);
+        sheet.getRange(i + 2, COL_USER.LAST_ACTIVE_AT + 1).setValue(nowStr);
+        SpreadsheetApp.flush();
+
+        var sessionToken = createServerSession_(email, r[COL_USER.ID]);
+        var sessionUser = buildUserSessionPayload_(r, sessionToken, email);
+        logActivity_('Login OTP Berhasil', email, 'Masuk via verifikasi OTP Email (' + sessionUser.role + ')', sessionUser);
+
+        return {
+          success: true,
+          user: sessionUser,
+          userSession: sessionUser,
+          permissions: sessionUser.izinAkses
+        };
+      }
+    }
+    return { success: false, message: 'Akun tidak ditemukan.' };
+  } catch (err) {
+    return { success: false, message: 'Gagal memverifikasi OTP login: ' + err.message };
+  } finally {
+    try { lock.releaseLock(); } catch (e) {}
+  }
+}
+
+function resendLoginOtp(payload) {
+  try {
+    payload = payload || {};
+    var email = (payload.email || '').toString().trim().toLowerCase();
+    if (!email) return { success: false, message: 'Email tidak valid.' };
+
+    var cache = CacheService.getScriptCache();
+    var emailHash = sha256Hex_(email).slice(0, 24);
+    if (!cache.get('LOGIN_OTP_' + emailHash)) {
+      return { success: false, message: 'Sesi OTP telah berakhir. Silakan masukkan Email & Kata Sandi ulang.' };
+    }
+    if (cache.get('LOGIN_OTP_CD_' + emailHash)) {
+      return { success: false, message: 'Tunggu 60 detik sebelum mengirim ulang kode OTP.' };
+    }
+
+    var sheet = getUserSheet_();
+    var data = readUserRowsSafe_(sheet);
+    var nama = email;
+    for (var i = 0; i < data.length; i++) {
+      if ((data[i][COL_USER.EMAIL] || '').toString().trim().toLowerCase() === email) {
+        nama = data[i][COL_USER.NAMA] || email;
+        break;
+      }
+    }
+    cache.remove('LOGIN_OTP_CD_' + emailHash);
+    var sent = sendLoginOtpEmail_(email, nama, 'inactivity_48h');
+    return { success: sent.ok, message: sent.message };
+  } catch (err) {
+    return { success: false, message: 'Gagal mengirim ulang OTP: ' + err.message };
   }
 }
 
@@ -1081,203 +1588,10 @@ function verifyGoogleIdToken_(credential, expectedClientId) {
 }
 
 function loginWithGoogle(payload) {
-  var lock = LockService.getScriptLock();
-  try {
-    lock.waitLock(8000);
-    payload = payload || {};
-    var credential = (payload.credential || payload.idToken || '').toString().trim();
-    if (!credential) {
-      return { success: false, message: 'Kredensial token Google tidak ditemukan.' };
-    }
-
-    var expectedClientId = '224443808801-cc7qfebil8jipnt4p1806vau8rabv302.apps.googleusercontent.com';
-    var checkRes = verifyGoogleIdToken_(credential, expectedClientId);
-    if (!checkRes.ok) {
-      return { success: false, message: checkRes.message };
-    }
-    var tokenData = checkRes.claims;
-
-    var cleanEmail = (tokenData.email || '').toString().trim().toLowerCase();
-    var googleName = (tokenData.name || cleanEmail.split('@')[0]).toString().trim();
-    var googlePicture = (tokenData.picture || '').toString().trim();
-
-    var sheet = getUserSheet_();
-    var lastRow = sheet.getLastRow();
-    var nowStr = Utilities.formatDate(new Date(), 'Asia/Jakarta', 'dd/MM/yyyy HH:mm:ss');
-    var matchedDeletedNonOwner = false;
-
-    if (lastRow > 1) {
-      var data = sheet.getRange(2, 1, lastRow - 1, 19).getDisplayValues();
-      for (var i = 0; i < data.length; i++) {
-        var r = data[i];
-        var emailInSheet = (r[5] || '').toString().trim().toLowerCase();
-        if (emailInSheet !== cleanEmail) continue;
-
-        var statusHapus = (r[18] || 'Active').toString().trim().toLowerCase();
-        if (statusHapus === 'deleted') {
-          if (cleanEmail !== 'markazyoutuber.official@gmail.com') {
-            matchedDeletedNonOwner = true;
-          }
-          continue;
-        }
-
-        var role = (r[7] || 'Pengguna').toString().trim().toUpperCase();
-        var statusAkun = (r[14] || 'Aktif').toString().trim();
-        var stNorm = statusAkun.toLowerCase();
-
-        // 1. Cek Akun Dibekukan
-        if (stNorm === 'dibekukan' || stNorm === 'frozen' || stNorm === 'locked') {
-          return {
-            success: false,
-            message: 'Akun Anda telah DIBEKUKAN oleh sistem. Hubungi Super Admin untuk membuka blokir.'
-          };
-        }
-
-        // 2. Cek Akun Pending (Kecuali Owner utama atau Super Admin)
-        var isOwner = (cleanEmail === 'markazyoutuber.official@gmail.com') || (role.indexOf('ADMIN') !== -1) || (role.indexOf('OWNER') !== -1);
-        if (!isOwner && (stNorm === 'pending' || stNorm === 'pending approval')) {
-          return {
-            success: false,
-            pendingApproval: true,
-            message: 'Akun Anda masih berstatus PENDING APPROVAL. Silakan hubungi Super Admin untuk persetujuan akun.'
-          };
-        }
-        if (isOwner && (stNorm === 'pending' || stNorm === 'pending approval')) {
-          statusAkun = 'Aktif';
-          sheet.getRange(i + 2, 15).setValue('Aktif');
-        }
-
-        // Reset fail count, perbarui last login & foto profil jika kosong
-        sheet.getRange(i + 2, 16).setValue(0);
-        sheet.getRange(i + 2, 18).setValue(nowStr);
-        if (googlePicture && !r[8]) {
-          sheet.getRange(i + 2, 9).setValue(googlePicture);
-        }
-        SpreadsheetApp.flush();
-
-        var cleanRole = role.replace(/[\s_]/g, '');
-        var normalizedRole = (cleanRole === 'SUPERADMIN' || cleanRole === 'OWNER' || cleanRole === 'SUPER' || cleanRole === 'ADMIN') ? 'SUPER_ADMIN' : 'TIM';
-        var izinJson = (r[16] || '{}').toString().trim();
-        var userPerms = normalizeUserPermsObj_(izinJson);
-        var sessionToken = createServerSession_(cleanEmail, r[0]);
-
-        var sessionUser = {
-          token: sessionToken,
-          id: r[0],
-          userId: r[0],
-          nama: r[1] || googleName,
-          nik: (r[2] || '').toString().trim(),
-          noWa: r[3] || '',
-          alamat: r[4] || '',
-          email: cleanEmail,
-          role: normalizedRole,
-          displayRole: r[7] || 'Pengguna',
-          fotoProfil: r[8] || googlePicture,
-          fotoKtpUrl: r[9] || '',
-          namaBank: r[10] || '',
-          bank: r[10] || '',
-          noRekening: r[11] || '',
-          atasNama: r[12] || '',
-          status: statusAkun,
-          izinAkses: userPerms,
-          authProvider: 'google'
-        };
-
-        logActivity_('Login Google Berhasil', cleanEmail, 'Masuk via Google Sign-In (' + normalizedRole + ')', sessionUser);
-
-        return {
-          success: true,
-          user: sessionUser,
-          userSession: sessionUser,
-          permissions: userPerms
-        };
-      }
-    }
-
-    if (matchedDeletedNonOwner) {
-      return {
-        success: false,
-        message: 'Akun dengan email ini sedang dinonaktifkan / berada di Tong Sampah. Hubungi Super Admin.'
-      };
-    }
-
-    // Akun belum terdaftar -> Registrasi Baru Otomatis via Google
-    var newUserId = generateId_('USR', sheet);
-    var isFirstOwner = (cleanEmail === 'markazyoutuber.official@gmail.com') || (lastRow <= 1);
-    var assignedRole = isFirstOwner ? 'Super Admin' : 'Pengguna';
-    var assignedStatus = isFirstOwner ? 'Aktif' : 'Pending Approval';
-    var defaultPerms = normalizeUserPermsObj_('{}');
-
-    var newRow = [
-      newUserId,
-      googleName,
-      '', // NIK
-      '', // No WhatsApp
-      '', // Alamat
-      cleanEmail,
-      hashPasswordSHA256(Utilities.getUuid()), // Sandi aman acak
-      assignedRole,
-      googlePicture, // Foto Profil dari Google
-      '', // Foto KTP URL
-      '', // Nama Bank
-      '', // No Rekening
-      '', // Atas Nama
-      nowStr, // Created_At
-      assignedStatus, // Status_Akun
-      0, // Salah_Password_Count
-      JSON.stringify(defaultPerms), // Izin_Akses_JSON
-      nowStr, // Last_Login
-      'Active' // Status_Hapus
-    ];
-
-    sheet.appendRow(newRow);
-    SpreadsheetApp.flush();
-
-    logActivity_('Registrasi Google', cleanEmail, 'Mendaftar via Google Sign-In (' + assignedRole + ')', null);
-
-    if (assignedStatus === 'Aktif') {
-      var normRole = isFirstOwner ? 'SUPER_ADMIN' : 'TIM';
-      var sessToken = createServerSession_(cleanEmail, newUserId);
-      var newSessionUser = {
-        token: sessToken,
-        id: newUserId,
-        userId: newUserId,
-        nama: googleName,
-        nik: '',
-        noWa: '',
-        alamat: '',
-        email: cleanEmail,
-        role: normRole,
-        displayRole: assignedRole,
-        fotoProfil: googlePicture,
-        fotoKtpUrl: '',
-        namaBank: '',
-        bank: '',
-        noRekening: '',
-        atasNama: '',
-        status: assignedStatus,
-        izinAkses: defaultPerms,
-        authProvider: 'google'
-      };
-
-      return {
-        success: true,
-        user: newSessionUser,
-        userSession: newSessionUser,
-        permissions: defaultPerms
-      };
-    } else {
-      return {
-        success: false,
-        pendingApproval: true,
-        message: 'Pendaftaran via akun Google berhasil! Akun Anda sedang menunggu persetujuan Super Admin.'
-      };
-    }
-  } catch (err) {
-    return { success: false, message: 'Google Sign-In Error: ' + err.message };
-  } finally {
-    try { lock.releaseLock(); } catch (e) {}
-  }
+  return {
+    success: false,
+    message: 'Login menggunakan Google telah dinonaktifkan oleh Owner demi keamanan. Silakan masuk menggunakan Email, Kata Sandi, dan verifikasi OTP Email.'
+  };
 }
 
 function logoutUser(userSession) {
@@ -1426,6 +1740,15 @@ function requestRegistrationOtp(payload) {
       }
     }
 
+    // Validasi konfirmasi kata sandi & nomor WhatsApp wajib
+    if (payload.confirmPassword !== undefined && payload.confirmPassword.toString() !== pass) {
+      return { success: false, message: 'Konfirmasi kata sandi tidak cocok!' };
+    }
+    var waDigits = noWa.replace(/[^0-9]/g, '');
+    if (!waDigits || waDigits.length < 8 || waDigits.length > 16) {
+      return { success: false, message: 'Nomor WhatsApp aktif wajib diisi dengan benar (minimal 8 digit)!' };
+    }
+
     var otpCode = String(Math.floor(100000 + Math.random() * 900000));
     var pendingKey = 'REG_PENDING_' + _sha256(email).slice(0, 24);
     var hashedPass = hashPasswordSHA256(pass);
@@ -1561,7 +1884,14 @@ function confirmRegistrationWithOtp(payload) {
       0,
       defaultPerms,
       '-',
-      'Active'
+      'Active',
+      '',
+      '',
+      'Belum Lengkap',
+      '',
+      '',
+      '',
+      ''
     ];
 
     sheet.appendRow(row);
@@ -1623,6 +1953,15 @@ function requestPasswordResetOtp(payload) {
     }
     if (stNorm === 'pending' || stNorm === 'pending approval') {
       return { success: false, message: 'Akun masih berstatus Pending Approval. Hubungi Admin untuk aktivasi terlebih dahulu.' };
+    }
+
+    // Validasi konfirmasi kata sandi & nomor WhatsApp wajib
+    if (payload.confirmPassword !== undefined && payload.confirmPassword.toString() !== pass) {
+      return { success: false, message: 'Konfirmasi kata sandi tidak cocok!' };
+    }
+    var waDigits = noWa.replace(/[^0-9]/g, '');
+    if (!waDigits || waDigits.length < 8 || waDigits.length > 16) {
+      return { success: false, message: 'Nomor WhatsApp aktif wajib diisi dengan benar (minimal 8 digit)!' };
     }
 
     var otpCode = String(Math.floor(100000 + Math.random() * 900000));
@@ -1742,36 +2081,40 @@ function getUsersData(params, userSession) {
     var allowKtp = superUser || canViewSensitive(userSession, 'ktp');
     params = params || {};
     var sheet = getUserSheet_();
-    var lastRow = sheet.getLastRow();
-    if (lastRow <= 1) return { success: true, data: [] };
+    var raw = readUserRowsSafe_(sheet);
+    if (!raw || raw.length === 0) return { success: true, data: [] };
 
-    var raw = sheet.getRange(2, 1, lastRow - 1, 19).getDisplayValues();
     var search = (params.search || '').toString().toLowerCase().trim();
     var statusFilter = (params.status || 'ALL').toString().trim().toLowerCase();
 
     var list = [];
     for (var i = 0; i < raw.length; i++) {
       var r = raw[i];
-      var id = r[0];
-      var nama = r[1];
-      var nik = r[2];
-      var noWa = r[3];
-      var alamat = r[4];
-      var email = r[5];
-      var role = r[7];
-      var fotoProfil = r[8];
-      var fotoKtp = allowKtp ? r[9] : '';
-      var bank = r[10];
-      var noRek = r[11];
-      var atasNama = r[12];
-      var status = r[14];
-      var salahCount = parseInt(r[15] || '0', 10);
-      var izinJson = superUser ? (r[16] || '{}') : '{}';
-      var lastLogin = r[17];
-      var statusHapus = r[18];
+      var id = r[COL_USER.ID];
+      var nama = r[COL_USER.NAMA];
+      var noWa = r[COL_USER.NO_WA];
+      var alamat = r[COL_USER.ALAMAT];
+      var email = r[COL_USER.EMAIL];
+      var role = r[COL_USER.ROLE];
+      var fotoProfil = r[COL_USER.FOTO_PROFIL];
+      var statusHapus = r[COL_USER.STATUS_HAPUS];
 
       if (!id && !email) continue;
       if (statusHapus.toLowerCase() === 'deleted') continue;
+
+      backfillOrCheckKycRow_(sheet, r, i + 2);
+
+      var status = r[COL_USER.STATUS_AKUN];
+      var fotoKtp = allowKtp ? (r[COL_USER.FOTO_KTP] || '') : '';
+      var fotoWajah = allowKtp ? (r[COL_USER.FOTO_WAJAH] || '') : '';
+      var fotoSelfieKtp = allowKtp ? (r[COL_USER.FOTO_SELFIE_KTP] || '') : '';
+      var bank = r[COL_USER.BANK];
+      var noRek = r[COL_USER.NO_REK];
+      var atasNama = r[COL_USER.ATAS_NAMA];
+      var salahCount = parseInt(r[COL_USER.SALAH_COUNT] || '0', 10);
+      var izinJson = superUser ? (r[COL_USER.IZIN_JSON] || '{}') : '{}';
+      var lastLogin = r[COL_USER.LAST_LOGIN];
+      var kycSummary = buildUserKycSummary_(r);
 
       if (statusFilter !== 'all' && status.toLowerCase() !== statusFilter) continue;
 
@@ -1783,19 +2126,29 @@ function getUsersData(params, userSession) {
       list.push({
         id: id,
         nama: nama,
+        nik: allowKtp ? (r[COL_USER.NIK] || '') : '',
         noWa: noWa,
         alamat: alamat,
         email: email,
         role: role,
         fotoProfil: fotoProfil,
         fotoKtpUrl: fotoKtp,
+        fotoWajahUrl: fotoWajah,
+        fotoSelfieKtpUrl: fotoSelfieKtp,
         bank: bank,
         noRekening: noRek,
         atasNama: atasNama,
         status: status,
         salahCount: salahCount,
         izinAkses: izinJson,
-        lastLogin: lastLogin || '-'
+        lastLogin: lastLogin || '-',
+        lastActiveAt: r[COL_USER.LAST_ACTIVE_AT] || lastLogin || '-',
+        kycComplete: kycSummary.kycComplete,
+        kycStatus: kycSummary.kycStatus,
+        kycDeadlineAt: kycSummary.kycDeadlineAt,
+        kycDaysRemaining: kycSummary.daysRemaining,
+        kycVerifiedAt: kycSummary.kycVerifiedAt,
+        kycNote: kycSummary.kycNote
       });
     }
 
@@ -1812,21 +2165,25 @@ function approveUser(targetEmail, userSession) {
       return { success: false, authExpired: !userSession, message: 'Akses ditolak: Anda tidak memiliki izin menyetujui akun.' };
     }
     var sheet = getUserSheet_();
-    var lastRow = sheet.getLastRow();
-    if (lastRow <= 1) return { success: false, message: 'Database user kosong.' };
+    var data = readUserRowsSafe_(sheet);
+    if (!data || data.length === 0) return { success: false, message: 'Database user kosong.' };
 
-    var data = sheet.getRange(2, 6, lastRow - 1, 14).getDisplayValues();
     var tEmail = (targetEmail || '').toString().trim().toLowerCase();
 
     for (var i = 0; i < data.length; i++) {
-      if ((data[i][13] || '').toString().toLowerCase() === 'deleted') continue;
-      if ((data[i][0] || '').toString().trim().toLowerCase() === tEmail) {
-        sheet.getRange(i + 2, 15).setValue('Aktif');
-        sheet.getRange(i + 2, 16).setValue(0);
+      if ((data[i][COL_USER.STATUS_HAPUS] || '').toString().toLowerCase() === 'deleted') continue;
+      if ((data[i][COL_USER.EMAIL] || '').toString().trim().toLowerCase() === tEmail) {
+        sheet.getRange(i + 2, COL_USER.STATUS_AKUN + 1).setValue('Aktif');
+        sheet.getRange(i + 2, COL_USER.SALAH_COUNT + 1).setValue(0);
+        if (!isUserKycComplete_(data[i])) {
+          var deadlineStr = addDaysYmdWIB_(Date.now(), KYC_GRACE_DAYS_);
+          sheet.getRange(i + 2, COL_USER.KYC_STATUS + 1).setValue('Belum Lengkap');
+          sheet.getRange(i + 2, COL_USER.KYC_DEADLINE + 1).setValue(deadlineStr);
+        }
         SpreadsheetApp.flush();
         clearAuthMemoryCache_();
-        logActivity_('Approve Akun', tEmail, 'Akun disetujui oleh Admin: ' + (userSession.nama || userSession.email), userSession);
-        return { success: true, message: 'Akun ' + tEmail + ' berhasil disetujui (Aktif)!' };
+        logActivity_('Approve Akun', tEmail, 'Akun disetujui oleh Admin (tenggang KYC 30 hari dimulai): ' + (userSession.nama || userSession.email), userSession);
+        return { success: true, message: 'Akun ' + tEmail + ' berhasil disetujui (Aktif)! Tenggang verifikasi KYC 30 hari telah dimulai.' };
       }
     }
     return { success: false, message: 'Pengguna tidak ditemukan.' };
@@ -1995,7 +2352,19 @@ function updateUserProfile(payload, userSession) {
       }
     }
     if (payload.fotoKtpUrl !== undefined) {
-      sheet.getRange(foundRow, 10).setValue(payload.fotoKtpUrl.toString().trim());
+      sheet.getRange(foundRow, COL_USER.FOTO_KTP + 1).setValue(payload.fotoKtpUrl.toString().trim());
+    }
+    if (payload.fotoProfilUrl !== undefined) {
+      var cleanP = payload.fotoProfilUrl.toString().trim();
+      if (!cleanP || /^https?:\/\//i.test(cleanP)) {
+        sheet.getRange(foundRow, COL_USER.FOTO_PROFIL + 1).setValue(cleanP);
+      }
+    }
+    if (payload.kycStatus !== undefined && superUser) {
+      sheet.getRange(foundRow, COL_USER.KYC_STATUS + 1).setValue(payload.kycStatus.toString().trim());
+    }
+    if (payload.kycDeadlineAt !== undefined && superUser) {
+      sheet.getRange(foundRow, COL_USER.KYC_DEADLINE + 1).setValue(payload.kycDeadlineAt.toString().trim());
     }
     if (payload.bank !== undefined) {
       sheet.getRange(foundRow, 11).setValue(payload.bank.toString().trim());
@@ -2008,6 +2377,7 @@ function updateUserProfile(payload, userSession) {
     }
     if (payload.status !== undefined && payload.status.toString().trim()) {
       var stVal = payload.status.toString().trim();
+      if (stVal.toLowerCase() === 'suspended' || stVal.toLowerCase() === 'suspen') stVal = 'Suspended';
       sheet.getRange(foundRow, 15).setValue(stVal);
       if (stVal.toLowerCase() === 'aktif') {
         sheet.getRange(foundRow, 16).setValue(0);
@@ -2035,6 +2405,37 @@ function syncUserSession(userSession) {
   try {
     var auth = authenticateSession(userSession);
     if (!auth) {
+      var suspendedInfo = null;
+      try {
+        var tok = (userSession && userSession.token) ? userSession.token.toString().trim() : '';
+        if (tok) {
+          var rawSess = PropertiesService.getScriptProperties().getProperty('SESS_' + tok) || CacheService.getScriptCache().get('SESS_' + tok);
+          if (rawSess) {
+            var meta = JSON.parse(rawSess);
+            if (meta && meta.e) {
+              var sh = getUserSheet_();
+              var rows = readUserRowsSafe_(sh);
+              for (var i = 0; i < rows.length; i++) {
+                if ((rows[i][COL_USER.EMAIL] || '').toString().trim().toLowerCase() === meta.e) {
+                  var st = (rows[i][COL_USER.STATUS_AKUN] || '').toString().trim().toLowerCase();
+                  if (st === 'suspended' || st === 'suspen') suspendedInfo = getOwnerWaInfo_();
+                  break;
+                }
+              }
+            }
+          }
+        }
+      } catch (eSusp) {}
+      if (suspendedInfo) {
+        return {
+          success: false,
+          authExpired: true,
+          suspended: true,
+          ownerWaDisplay: suspendedInfo.raw,
+          ownerWaUrl: suspendedInfo.waUrl,
+          message: 'Akun Anda terkena SUSPEN karena melewati batas 30 hari verifikasi KYC. Hubungi Owner (' + suspendedInfo.raw + ') untuk mengaktifkan kembali.'
+        };
+      }
       return { success: false, authExpired: true, message: 'Sesi login telah kedaluwarsa atau dicabut. Silakan login kembali.' };
     }
     return { success: true, userSession: auth, permissions: auth.izinAkses };
@@ -2106,6 +2507,12 @@ function updateMyProfileAndPassword(payload, userSession) {
     }
     if (payload.fotoKtpUrl !== undefined) {
       sheet.getRange(foundRow, 10).setValue(payload.fotoKtpUrl.toString().trim());
+    }
+    if (payload.fotoProfilUrl !== undefined) {
+      var cleanProfilUrl = payload.fotoProfilUrl.toString().trim();
+      if (!cleanProfilUrl || /^https?:\/\//i.test(cleanProfilUrl)) {
+        sheet.getRange(foundRow, COL_USER.FOTO_PROFIL + 1).setValue(cleanProfilUrl);
+      }
     }
     if (payload.namaBank !== undefined || payload.bank !== undefined) {
       var bVal = (payload.namaBank !== undefined ? payload.namaBank : payload.bank);
@@ -3388,15 +3795,16 @@ function uploadStudioFile(payload, userSession) {
     userSession = authenticateSession(userSession);
     if (!userSession) return { success: false, authExpired: true, message: 'Sesi tidak valid.' };
 
-    var rawMod = (payload && (payload.module || payload.folderType || 'umum')).toString().toLowerCase().trim();
+    var rawMod = (payload && (payload.folderType || payload.module || 'umum')).toString().toLowerCase().trim();
     var moduleName = rawMod;
     if (rawMod === 'adsense_ktp' || rawMod === 'adsense') moduleName = 'adsense';
-    else if (rawMod === 'user_ktp' || rawMod === 'user' || rawMod === 'pengguna') moduleName = 'user';
+    else if (rawMod === 'user_ktp' || rawMod === 'user' || rawMod === 'pengguna' || rawMod === 'user_wajah' || rawMod === 'user_selfie_ktp' || rawMod === 'user_profile') moduleName = 'user';
     else if (rawMod === 'finance' || rawMod === 'keuangan' || rawMod === 'nota' || rawMod === 'bukti' || rawMod === 'foto') moduleName = 'finance';
 
-    var isSensitiveKtp = (moduleName === 'adsense' || moduleName === 'user');
+    var isProfileAvatar = (rawMod === 'user_profile');
+    var isSensitiveKtp = (moduleName === 'adsense' || (moduleName === 'user' && !isProfileAvatar));
 
-    if (isSensitiveKtp) {
+    if (moduleName === 'adsense' || moduleName === 'user') {
       if (moduleName === 'adsense') {
         if (!canAccessModule(userSession, 'adsense') || (!canPerformModuleAction(userSession, 'adsense', 'add') && !canPerformModuleAction(userSession, 'adsense', 'edit'))) {
           return { success: false, message: 'Akses ditolak: Anda tidak memiliki izin mengunggah dokumen KTP AdSense.' };
@@ -3404,12 +3812,11 @@ function uploadStudioFile(payload, userSession) {
       } else {
         var canManageOthersKtp = isSuperAdmin(userSession) || canPerformModuleAction(userSession, 'users', 'edit');
         var tEmail = (payload.targetEmail || '').toString().trim().toLowerCase();
-        var isSelfUserKtp = (moduleName === 'user' && (!tEmail || tEmail === (userSession.email || '').toLowerCase()));
-        if (!canManageOthersKtp && !isSelfUserKtp) {
-          return { success: false, message: 'Akses ditolak: Anda tidak berhak mengunggah dokumen KTP pengguna lain.' };
+        var isSelfUserDoc = (!tEmail || tEmail === (userSession.email || '').toLowerCase());
+        if (!canManageOthersKtp && !isSelfUserDoc) {
+          return { success: false, message: 'Akses ditolak: Anda tidak berhak mengunggah dokumen pengguna lain.' };
         }
-        // Kunci nama folder target ke identitas sesi sendiri jika bukan pengelola Admin Panel
-        if (!canManageOthersKtp) {
+        if (!canManageOthersKtp || isSelfUserDoc) {
           payload.targetName = userSession.nama || userSession.email || 'Pengguna';
         }
       }
@@ -3421,7 +3828,9 @@ function uploadStudioFile(payload, userSession) {
       return { success: false, message: 'Akses ditolak.' };
     }
 
-    var safeMimes = ['image/jpeg', 'image/jpg', 'image/png', 'image/webp', 'image/gif', 'application/pdf'];
+    var safeMimes = isProfileAvatar
+      ? ['image/jpeg', 'image/jpg', 'image/png', 'image/webp']
+      : ['image/jpeg', 'image/jpg', 'image/png', 'image/webp', 'image/gif', 'application/pdf'];
     var validated = validateSafeUploadPayload_(payload, safeMimes);
     if (validated.error) return { success: false, message: validated.error };
 
@@ -3433,7 +3842,13 @@ function uploadStudioFile(payload, userSession) {
       segments.push('Database AdSense', adsName);
     } else if (moduleName === 'user' || moduleName === 'pengguna') {
       var uName = (payload.targetName || 'Pengguna Umum').toString().trim();
-      segments.push('Database Pengguna', uName);
+      if (isProfileAvatar) {
+        segments.push('Database Pengguna', uName, 'Foto Profil');
+      } else if (rawMod === 'user_wajah' || rawMod === 'user_selfie_ktp') {
+        segments.push('Database Pengguna', uName, 'KYC');
+      } else {
+        segments.push('Database Pengguna', uName);
+      }
     } else if (moduleName === 'finance' || moduleName === 'keuangan') {
       var finSub = (payload.subfolder || 'Bukti Transaksi').toString().trim();
       segments.push('Keuangan Studio', finSub);
@@ -3444,19 +3859,22 @@ function uploadStudioFile(payload, userSession) {
     var folder = getOrCreateDrivePath_(segments);
     var file = folder.createFile(blob);
 
-    // KTP sensitif diset PRIVATE (hanya dapat diakses via proxy terautentikasi Super Admin)
+    // KTP & foto KYC wajah diset PRIVATE (hanya dapat diakses via proxy terautentikasi)
     if (isSensitiveKtp) {
       file.setSharing(DriveApp.Access.PRIVATE, DriveApp.Permission.NONE);
     } else {
       file.setSharing(DriveApp.Access.ANYONE_WITH_LINK, DriveApp.Permission.VIEW);
     }
 
-    logActivity_('Upload Berkas Studio', moduleName, file.getName() + ' -> ' + segments.join(' / '), userSession);
+    logActivity_('Upload Berkas Studio', rawMod || moduleName, file.getName() + ' -> ' + segments.join(' / '), userSession);
 
+    var avatarDirectUrl = isProfileAvatar ? ('https://lh3.googleusercontent.com/d/' + file.getId() + '=w400') : '';
     return {
       success: true,
       fileUrl: file.getUrl(),
       url: file.getUrl(),
+      avatarUrl: avatarDirectUrl,
+      driveViewUrl: file.getUrl(),
       fileId: file.getId(),
       fileName: file.getName(),
       folderPath: segments.join(' / '),
@@ -3486,7 +3904,11 @@ function getProtectedDriveImage(fileUrlOrId, userSession) {
 
     if (!fileId) return { success: false, message: 'ID file Drive tidak valid.' };
 
-    var isOwnKtp = (userSession.fotoKtpUrl && userSession.fotoKtpUrl.indexOf(fileId) !== -1);
+    var isOwnKtp = (
+      (userSession.fotoKtpUrl && userSession.fotoKtpUrl.indexOf(fileId) !== -1) ||
+      (userSession.fotoWajahUrl && userSession.fotoWajahUrl.indexOf(fileId) !== -1) ||
+      (userSession.fotoSelfieKtpUrl && userSession.fotoSelfieKtpUrl.indexOf(fileId) !== -1)
+    );
     var canViewAnyKtp = canViewSensitive(userSession, 'ktp') && (canAccessModule(userSession, 'users') || canAccessModule(userSession, 'adsense'));
     var isKtpDoc = false;
     if (!isSuperAdmin(userSession) && !isOwnKtp) {
@@ -3500,11 +3922,10 @@ function getProtectedDriveImage(fileUrlOrId, userSession) {
         }
         if (!isKtpDoc) {
           var usrSh = getUserSheet_();
-          if (usrSh && usrSh.getLastRow() > 1) {
-            var usrKtps = usrSh.getRange(2, 10, usrSh.getLastRow() - 1, 1).getDisplayValues();
-            for (var ui = 0; ui < usrKtps.length; ui++) {
-              if ((usrKtps[ui][0] || '').indexOf(fileId) !== -1) { isKtpDoc = true; break; }
-            }
+          var usrRows = readUserRowsSafe_(usrSh);
+          for (var ui = 0; ui < usrRows.length; ui++) {
+            var kLine = (usrRows[ui][COL_USER.FOTO_KTP] || '') + ' ' + (usrRows[ui][COL_USER.FOTO_WAJAH] || '') + ' ' + (usrRows[ui][COL_USER.FOTO_SELFIE_KTP] || '');
+            if (kLine.indexOf(fileId) !== -1) { isKtpDoc = true; break; }
           }
         }
       } catch (eKtpChk) {}
@@ -5790,6 +6211,7 @@ function compileAndSendDailyWorkRecap_(targetDateYmd, forceResend) {
  * Handler Trigger Otomatis Pukul 23:00 WIB Setiap Hari
  */
 function runDailyWorkRecapJob() {
+  enforceAllUsersKycDeadlines_();
   var res = compileAndSendDailyWorkRecap_(getTodayDateYmdWIB(0), false);
   return {
     success: !!(res && res.success),
@@ -5957,6 +6379,341 @@ function triggerManualDailyRecapNow(targetDate, userSession) {
     return res;
   } catch (err) {
     return { success: false, message: 'Gagal menjalankan rekap manual: ' + err.message };
+  }
+}
+
+/**
+ * ================================================================================
+ * 🪪 MODUL KYC WAJIB 30 HARI, GEMINI VISION OCR KTP, AUTO-SUSPEN & KONFIG OWNER (REV-10.23)
+ * ================================================================================
+ */
+function parseGeminiKtpResponse_(rawText) {
+  if (!rawText) return null;
+  var cleaned = rawText.toString().trim();
+  cleaned = cleaned.replace(/^```(?:json)?/i, '').replace(/```$/i, '').trim();
+  try {
+    return JSON.parse(cleaned);
+  } catch (e) {
+    var m = cleaned.match(/\{[\s\S]*\}/);
+    if (m) {
+      try { return JSON.parse(m[0]); } catch (e2) {}
+    }
+  }
+  return null;
+}
+
+function formatKtpScannedAddress_(obj) {
+  if (!obj || typeof obj !== 'object') return '';
+  if (obj.formattedAddress && obj.formattedAddress.toString().trim().length >= 8) {
+    return obj.formattedAddress.toString().trim();
+  }
+  var parts = [];
+  if (obj.alamatLengkap) parts.push(obj.alamatLengkap.toString().trim());
+  if (obj.rtRw) {
+    var rt = obj.rtRw.toString().trim();
+    if (!/^rt/i.test(rt)) rt = 'RT/RW ' + rt;
+    parts.push(rt);
+  }
+  if (obj.kelDesa) parts.push('Kel. ' + obj.kelDesa.toString().trim().replace(/^kel\.?\s*/i, ''));
+  if (obj.kecamatan) parts.push('Kec. ' + obj.kecamatan.toString().trim().replace(/^kec\.?\s*/i, ''));
+  if (obj.kotaKabupaten) parts.push(obj.kotaKabupaten.toString().trim());
+  if (obj.provinsi) parts.push(obj.provinsi.toString().trim());
+  return parts.join(', ');
+}
+
+function scanKtpWithGemini(payload, userSession) {
+  try {
+    userSession = authenticateSession(userSession);
+    if (!userSession) return { success: false, authExpired: true, message: 'Sesi tidak valid.' };
+
+    var apiKey = '';
+    try {
+      apiKey = (PropertiesService.getScriptProperties().getProperty('GEMINI_API_KEY') || '').toString().trim();
+    } catch (e) {}
+
+    if (!apiKey) {
+      return {
+        success: false,
+        missingApiKey: true,
+        message: 'GEMINI_API_KEY belum dipasang oleh Owner di Pengaturan Keamanan & OCR (atau ScriptProperties GAS). Anda tetap dapat mengetik alamat KTP secara manual.'
+      };
+    }
+
+    payload = payload || {};
+    var safeMimes = ['image/jpeg', 'image/jpg', 'image/png', 'image/webp'];
+    var validated = validateSafeUploadPayload_(payload, safeMimes);
+    if (validated.error) return { success: false, message: validated.error };
+
+    var b64Clean = payload.base64Data.toString();
+    if (b64Clean.indexOf(',') > -1) b64Clean = b64Clean.split(',')[1];
+
+    var promptText = 'Anda adalah sistem ekstraksi data e-KTP Indonesia berpresisi tinggi. Analisis gambar KTP ini dan kembalikan HANYA JSON valid tanpa markdown dengan kunci persis: ' +
+      '{"isValidKtp": boolean, "nik": string, "nama": string, "alamatLengkap": string, "rtRw": string, "kelDesa": string, "kecamatan": string, "kotaKabupaten": string, "provinsi": string, "formattedAddress": string}. ' +
+      'Gabungkan alamat jalan, RT/RW, Kel/Desa, Kecamatan, Kota/Kabupaten, dan Provinsi secara rapi dan lengkap ke dalam "formattedAddress". Jika teks tidak terbaca atau bukan KTP Indonesia, set isValidKtp=false.';
+
+    var reqBody = {
+      contents: [{
+        parts: [
+          { text: promptText },
+          { inlineData: { mimeType: validated.mime, data: b64Clean } }
+        ]
+      }],
+      generationConfig: {
+        temperature: 0.1,
+        responseMimeType: 'application/json'
+      }
+    };
+
+    var modelsToTry = ['gemini-2.5-flash', 'gemini-2.0-flash'];
+    var parsedKtp = null;
+    var lastErr = '';
+
+    for (var mIdx = 0; mIdx < modelsToTry.length; mIdx++) {
+      var endpoint = 'https://generativelanguage.googleapis.com/v1beta/models/' + modelsToTry[mIdx] + ':generateContent?key=' + encodeURIComponent(apiKey);
+      var resp = UrlFetchApp.fetch(endpoint, {
+        method: 'post',
+        contentType: 'application/json',
+        payload: JSON.stringify(reqBody),
+        muteHttpExceptions: true
+      });
+      var code = resp.getResponseCode();
+      var txt = resp.getContentText() || '';
+      if (code === 200) {
+        var jsonResp = JSON.parse(txt || '{}');
+        var candidateText = '';
+        if (jsonResp.candidates && jsonResp.candidates[0] && jsonResp.candidates[0].content && jsonResp.candidates[0].content.parts) {
+          candidateText = jsonResp.candidates[0].content.parts.map(function(p) { return p.text || ''; }).join('\n');
+        }
+        parsedKtp = parseGeminiKtpResponse_(candidateText);
+        if (parsedKtp) break;
+      } else {
+        lastErr = 'HTTP ' + code;
+        if (code !== 404) break;
+      }
+    }
+
+    if (!parsedKtp) {
+      return { success: false, message: 'Gagal memindai KTP dengan Gemini AI (' + (lastErr || 'respons tidak terbaca') + '). Silakan ketik alamat sesuai KTP secara manual.' };
+    }
+    if (parsedKtp.isValidKtp === false) {
+      return { success: false, message: 'Gambar tidak terdeteksi sebagai e-KTP Indonesia yang jelas. Ambil ulang foto KTP dengan pencahayaan terang tanpa silau.' };
+    }
+
+    var formattedAddr = formatKtpScannedAddress_(parsedKtp);
+    return {
+      success: true,
+      nik: (parsedKtp.nik || '').toString().replace(/[^0-9]/g, ''),
+      nama: (parsedKtp.nama || '').toString().trim(),
+      alamat: formattedAddr,
+      rawFields: parsedKtp,
+      message: formattedAddr ? 'Alamat KTP berhasil dipindai otomatis! Periksa kembali sebelum menyimpan.' : 'KTP terdeteksi tetapi alamat buram, silakan lengkapi manual.'
+    };
+  } catch (err) {
+    return { success: false, message: 'Kesalahan pemindaian KTP AI: ' + err.message };
+  }
+}
+
+function submitUserKyc(payload, userSession) {
+  try {
+    userSession = authenticateSession(userSession);
+    if (!userSession) return { success: false, authExpired: true, message: 'Sesi tidak valid.' };
+
+    payload = payload || {};
+    var alamat = (payload.alamat || '').toString().trim();
+    var nik = (payload.nik || '').toString().trim();
+    var fotoWajahUrl = (payload.fotoWajahUrl || '').toString().trim();
+    var fotoKtpUrl = (payload.fotoKtpUrl || '').toString().trim();
+    var fotoSelfieKtpUrl = (payload.fotoSelfieKtpUrl || '').toString().trim();
+
+    if (alamat.length < 8) {
+      return { success: false, message: 'Alamat domisili lengkap sesuai KTP wajib diisi (minimal 8 karakter).' };
+    }
+    if (!fotoWajahUrl || !/^https?:\/\//i.test(fotoWajahUrl)) {
+      return { success: false, message: 'Foto Wajah wajib diambil lewat kamera.' };
+    }
+    if (!fotoKtpUrl || !/^https?:\/\//i.test(fotoKtpUrl)) {
+      return { success: false, message: 'Foto KTP wajib diambil lewat kamera.' };
+    }
+    if (!fotoSelfieKtpUrl || !/^https?:\/\//i.test(fotoSelfieKtpUrl)) {
+      return { success: false, message: 'Foto Wajah memegang KTP wajib diambil lewat kamera.' };
+    }
+
+    var sheet = getUserSheet_();
+    var rows = readUserRowsSafe_(sheet);
+    for (var i = 0; i < rows.length; i++) {
+      if ((rows[i][COL_USER.STATUS_HAPUS] || '').toString().toLowerCase() === 'deleted') continue;
+      if ((rows[i][COL_USER.EMAIL] || '').toString().trim().toLowerCase() === userSession.email) {
+        var rowNum = i + 2;
+        var nowStr = Utilities.formatDate(new Date(), 'Asia/Jakarta', 'dd/MM/yyyy HH:mm:ss');
+        sheet.getRange(rowNum, COL_USER.ALAMAT + 1).setValue(alamat);
+        if (nik) sheet.getRange(rowNum, COL_USER.NIK + 1).setValue(nik);
+        sheet.getRange(rowNum, COL_USER.FOTO_KTP + 1).setValue(fotoKtpUrl);
+        sheet.getRange(rowNum, COL_USER.FOTO_WAJAH + 1).setValue(fotoWajahUrl);
+        sheet.getRange(rowNum, COL_USER.FOTO_SELFIE_KTP + 1).setValue(fotoSelfieKtpUrl);
+        sheet.getRange(rowNum, COL_USER.KYC_STATUS + 1).setValue('Terverifikasi');
+        sheet.getRange(rowNum, COL_USER.KYC_VERIFIED_AT + 1).setValue(nowStr);
+        sheet.getRange(rowNum, COL_USER.KYC_NOTE + 1).setValue('Lengkap via Kamera Langsung');
+        SpreadsheetApp.flush();
+        clearAuthMemoryCache_();
+
+        logActivity_('Verifikasi KYC Lengkap', userSession.email, 'Pengguna melengkapi Foto Wajah, Foto KTP, Selfie+KTP, dan Alamat lengkap.', userSession);
+        var updatedSession = authenticateSession(userSession);
+        return {
+          success: true,
+          message: 'Verifikasi Identitas (KYC) lengkap dan berhasil disimpan!',
+          userSession: updatedSession
+        };
+      }
+    }
+    return { success: false, message: 'Akun pengguna tidak ditemukan.' };
+  } catch (err) {
+    return { success: false, message: 'Gagal menyimpan verifikasi KYC: ' + err.message };
+  }
+}
+
+function reviewUserKyc(payload, userSession) {
+  try {
+    userSession = authenticateSession(userSession);
+    if (!userSession || !canPerformModuleAction(userSession, 'users', 'edit')) {
+      return { success: false, authExpired: !userSession, message: 'Akses ditolak: Anda tidak memiliki izin meninjau KYC.' };
+    }
+    payload = payload || {};
+    var targetEmail = (payload.targetEmail || '').toString().trim().toLowerCase();
+    var decision = (payload.decision || '').toString().trim().toLowerCase();
+    var note = (payload.note || '').toString().trim();
+    var extendDays = Math.max(1, Math.min(30, parseInt(payload.extendDays, 10) || 7));
+
+    if (!targetEmail || (decision !== 'approve' && decision !== 'reject')) {
+      return { success: false, message: 'Parameter audit KYC tidak valid.' };
+    }
+
+    var superUser = isSuperAdmin(userSession);
+    var sheet = getUserSheet_();
+    var rows = readUserRowsSafe_(sheet);
+    for (var i = 0; i < rows.length; i++) {
+      if ((rows[i][COL_USER.STATUS_HAPUS] || '').toString().toLowerCase() === 'deleted') continue;
+      if ((rows[i][COL_USER.EMAIL] || '').toString().trim().toLowerCase() === targetEmail) {
+        if (!superUser && isSuperAdminRoleStr_(rows[i][COL_USER.ROLE])) {
+          return { success: false, message: 'Akses ditolak: Tidak berhak mengubah KYC akun Admin.' };
+        }
+        var rowNum = i + 2;
+        var nowStr = Utilities.formatDate(new Date(), 'Asia/Jakarta', 'dd/MM/yyyy HH:mm:ss');
+
+        if (decision === 'approve') {
+          sheet.getRange(rowNum, COL_USER.KYC_STATUS + 1).setValue('Terverifikasi');
+          sheet.getRange(rowNum, COL_USER.KYC_VERIFIED_AT + 1).setValue(nowStr);
+          sheet.getRange(rowNum, COL_USER.KYC_NOTE + 1).setValue(note || 'Diaudit & Disetujui Admin');
+          SpreadsheetApp.flush();
+          clearAuthMemoryCache_();
+          logActivity_('Audit KYC Disetujui', targetEmail, note || 'Terverifikasi oleh Owner/Admin', userSession);
+          return { success: true, message: 'Status KYC ' + targetEmail + ' ditandai Terverifikasi!' };
+        } else {
+          var newDeadline = rows[i][COL_USER.KYC_DEADLINE];
+          var endMs = getDeadlineEndWibMs_(newDeadline);
+          if (!newDeadline || !endMs || endMs < Date.now()) {
+            newDeadline = addDaysYmdWIB_(Date.now(), extendDays);
+          }
+          sheet.getRange(rowNum, COL_USER.KYC_STATUS + 1).setValue('Ditolak');
+          sheet.getRange(rowNum, COL_USER.KYC_DEADLINE + 1).setValue(newDeadline);
+          sheet.getRange(rowNum, COL_USER.KYC_NOTE + 1).setValue(note || 'Foto / data KYC ditolak Owner. Harap ulangi lewat kamera.');
+          SpreadsheetApp.flush();
+          clearAuthMemoryCache_();
+          logActivity_('Audit KYC Ditolak', targetEmail, note || 'Ditolak oleh Owner/Admin (tenggang s.d. ' + newDeadline + ')', userSession);
+          try {
+            MailApp.sendEmail({
+              to: targetEmail,
+              subject: '[DoGo Studio V1] Verifikasi KYC Perlu Diperbaiki',
+              htmlBody: '<p>Halo <strong>' + (rows[i][COL_USER.NAMA] || targetEmail) + '</strong>,</p><p>Hasil pemeriksaan verifikasi identitas (KYC) Anda ditolak dengan catatan: <strong>' + (note || 'Mohon ambil ulang foto lewat kamera dengan lebih jelas.') + '</strong></p><p>Harap segera lengkapi ulang di menu Profil/KYC sebelum <strong>' + newDeadline + '</strong> agar akun tidak terkena suspen.</p>'
+            });
+          } catch (eMail) {}
+          return { success: true, message: 'KYC ' + targetEmail + ' ditandai Ditolak. Pengguna wajib mengunggah ulang sebelum ' + newDeadline + '.' };
+        }
+      }
+    }
+    return { success: false, message: 'Pengguna tidak ditemukan.' };
+  } catch (err) {
+    return { success: false, message: 'Gagal memproses audit KYC: ' + err.message };
+  }
+}
+
+function unsuspendUser(payload, userSession) {
+  try {
+    userSession = authenticateSession(userSession);
+    if (!userSession || !isSuperAdmin(userSession)) {
+      return { success: false, authExpired: !userSession, message: 'Akses ditolak: Hanya Owner / Super Admin yang berhak membuka akun Suspen!' };
+    }
+    payload = payload || {};
+    var targetEmail = (typeof payload === 'string' ? payload : (payload.targetEmail || '')).toString().trim().toLowerCase();
+    var extendDays = Math.max(1, Math.min(60, parseInt(payload.extendDays, 10) || 14));
+    if (!targetEmail) return { success: false, message: 'Email pengguna tidak valid.' };
+
+    var sheet = getUserSheet_();
+    var rows = readUserRowsSafe_(sheet);
+    for (var i = 0; i < rows.length; i++) {
+      if ((rows[i][COL_USER.STATUS_HAPUS] || '').toString().toLowerCase() === 'deleted') continue;
+      if ((rows[i][COL_USER.EMAIL] || '').toString().trim().toLowerCase() === targetEmail) {
+        var rowNum = i + 2;
+        var nextDeadline = addDaysYmdWIB_(Date.now(), extendDays);
+        sheet.getRange(rowNum, COL_USER.STATUS_AKUN + 1).setValue('Aktif');
+        sheet.getRange(rowNum, COL_USER.SALAH_COUNT + 1).setValue(0);
+        if (!isUserKycComplete_(rows[i])) {
+          sheet.getRange(rowNum, COL_USER.KYC_STATUS + 1).setValue('Belum Lengkap');
+          sheet.getRange(rowNum, COL_USER.KYC_DEADLINE + 1).setValue(nextDeadline);
+        }
+        sheet.getRange(rowNum, COL_USER.KYC_NOTE + 1).setValue('Suspen dibuka Owner (+' + extendDays + ' hari s.d. ' + nextDeadline + ')');
+        SpreadsheetApp.flush();
+        clearAuthMemoryCache_();
+        logActivity_('Cabut Suspen KYC', targetEmail, 'Owner membuka blokir suspen & memberi perpanjangan s.d. ' + nextDeadline, userSession);
+        return {
+          success: true,
+          message: 'Suspen akun ' + targetEmail + ' berhasil dicabut! Tenggang verifikasi KYC diperpanjang ' + extendDays + ' hari (s.d. ' + nextDeadline + ').'
+        };
+      }
+    }
+    return { success: false, message: 'Pengguna tidak ditemukan.' };
+  } catch (err) {
+    return { success: false, message: 'Gagal mencabut suspen: ' + err.message };
+  }
+}
+
+function getOwnerSecurityConfig(userSession) {
+  try {
+    userSession = authenticateSession(userSession);
+    if (!userSession || !isSuperAdmin(userSession)) {
+      return { success: false, authExpired: !userSession, message: 'Akses ditolak: Khusus Owner / Super Admin.' };
+    }
+    var props = PropertiesService.getScriptProperties();
+    var geminiKey = (props.getProperty('GEMINI_API_KEY') || '').toString().trim();
+    var ownerWa = (props.getProperty('OWNER_CONTACT_WA') || '').toString().trim();
+    return {
+      success: true,
+      hasGeminiKey: !!geminiKey,
+      geminiKeyMasked: geminiKey ? (geminiKey.slice(0, 6) + '••••••••' + geminiKey.slice(-4)) : '',
+      ownerContactWa: ownerWa
+    };
+  } catch (err) {
+    return { success: false, message: 'Gagal memuat konfigurasi: ' + err.message };
+  }
+}
+
+function saveOwnerSecurityConfig(payload, userSession) {
+  try {
+    userSession = authenticateSession(userSession);
+    if (!userSession || !isSuperAdmin(userSession)) {
+      return { success: false, authExpired: !userSession, message: 'Akses ditolak: Hanya Owner / Super Admin yang berhak mengubah pengaturan keamanan & OCR.' };
+    }
+    payload = payload || {};
+    var props = PropertiesService.getScriptProperties();
+    if (payload.geminiApiKey !== undefined && payload.geminiApiKey.toString().trim()) {
+      props.setProperty('GEMINI_API_KEY', payload.geminiApiKey.toString().trim());
+    }
+    if (payload.ownerContactWa !== undefined) {
+      props.setProperty('OWNER_CONTACT_WA', payload.ownerContactWa.toString().trim());
+    }
+    logActivity_('Update Konfigurasi Keamanan & OCR', 'ScriptProperties', 'Owner memperbarui nomor WA kontak / Gemini API Key OCR KTP', userSession);
+    return { success: true, message: 'Pengaturan Keamanan & OCR berhasil disimpan!' };
+  } catch (err) {
+    return { success: false, message: 'Gagal menyimpan konfigurasi: ' + err.message };
   }
 }
 
