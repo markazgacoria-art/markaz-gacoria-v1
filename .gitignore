@@ -1,0 +1,13 @@
+# Dependency & build directories
+node_modules/
+dist/
+.vercel/
+
+# Temporary and test scratch files
+scratch/
+.system_generated/
+*.log
+
+# OS metadata
+.DS_Store
+Thumbs.db

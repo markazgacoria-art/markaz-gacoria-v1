@@ -1,0 +1,1332 @@
+<!DOCTYPE html>
+<html lang="id">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>DoGo Studio V1 - YouTube Content Management System</title>
+  
+  <!-- Tailwind CSS -->
+  <script src="https://cdn.tailwindcss.com"></script>
+  
+  <!-- Font Awesome Icons -->
+  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.1/css/all.min.css">
+  
+  <!-- Inter Google Font -->
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800;900&display=swap" rel="stylesheet">
+  
+  <!-- DoGo Studio V1 Design System -->
+  <?!= include('css'); ?>
+</head>
+<body class="bg-[#060d09] text-slate-100 min-h-screen flex flex-col font-['Inter'] antialiased selection:bg-emerald-500 selection:text-black">
+
+  <!-- Toast Notification Container -->
+  <div id="toastContainer" class="fixed top-5 right-5 z-[9999] flex flex-col gap-2 pointer-events-none max-w-sm w-full"></div>
+
+  <!-- Main Authenticated App Wrapper -->
+  <div id="appAuthWrapper" class="hidden min-h-screen flex flex-col md:flex-row">
+    
+    <!-- ========================================================================= -->
+    <!-- 🌿 SIDEBAR NAVIGATION                                                    -->
+    <!-- ========================================================================= -->
+    <aside id="appSidebar" class="w-72 bg-[#07120b] border-r border-emerald-500/15 flex flex-col justify-between shrink-0 fixed inset-y-0 left-0 z-40 transform -translate-x-full md:translate-x-0 transition-transform duration-300 ease-in-out">
+      
+      <!-- Top Brand & Header -->
+      <div class="p-5 flex flex-col gap-6">
+        <div class="flex items-center justify-between">
+          <div class="flex items-center gap-3">
+            <div class="w-10 h-10 rounded-xl bg-gradient-to-tr from-emerald-600 to-emerald-400 flex items-center justify-center shadow-lg shadow-emerald-500/20 text-black font-black text-xl">
+              D
+            </div>
+            <div>
+              <div class="flex items-center gap-1.5">
+                <span class="text-lg font-black tracking-tight text-white">DoGo <span class="text-emerald-400">Studio</span></span>
+                <span class="text-[10px] uppercase font-bold tracking-wider px-1.5 py-0.5 rounded bg-emerald-500/20 text-emerald-400 border border-emerald-500/30">V1</span>
+              </div>
+              <p class="text-[11px] text-slate-400 font-medium">YouTube Studio OS</p>
+            </div>
+          </div>
+          <button id="btnCloseMobileSidebar" class="md:hidden text-slate-400 hover:text-white p-2">
+            <i class="fa-solid fa-xmark text-lg"></i>
+          </button>
+        </div>
+
+        <!-- Navigation Links Menu -->
+        <nav class="flex flex-col gap-1.5 text-sm overflow-y-auto max-h-[calc(100vh-230px)] pr-1 custom-scrollbar">
+          
+          <div class="text-[10px] uppercase tracking-wider font-bold text-slate-500 px-3 pt-2 pb-1">Operasional Utama</div>
+          
+          <button onclick="switchView('dashboard')" id="nav-dashboard" class="nav-item flex items-center gap-3 px-3.5 py-2.5 rounded-xl font-medium text-slate-300 hover:text-white hover:bg-emerald-500/10 transition-all text-left">
+            <i class="fa-solid fa-chart-pie w-5 text-center text-emerald-400"></i>
+            <span>Dashboard Eksekutif</span>
+          </button>
+
+          <button onclick="switchView('jadwal')" id="nav-jadwal" class="nav-item flex items-center justify-between px-3.5 py-2.5 rounded-xl font-medium text-slate-300 hover:text-white hover:bg-emerald-500/10 transition-all text-left">
+            <div class="flex items-center gap-3">
+              <i class="fa-solid fa-calendar-check w-5 text-center text-emerald-400"></i>
+              <span>Jadwal Pengerjaan</span>
+            </div>
+            <span id="navJadwalBadge" class="hidden text-[10px] font-bold px-2 py-0.5 rounded-full bg-emerald-500/20 text-emerald-400 border border-emerald-500/30">0</span>
+          </button>
+
+          <button onclick="switchView('database')" id="nav-database" class="nav-item flex items-center gap-3 px-3.5 py-2.5 rounded-xl font-medium text-slate-300 hover:text-white hover:bg-emerald-500/10 transition-all text-left">
+            <i class="fa-brands fa-youtube w-5 text-center text-red-500"></i>
+            <span>Database Channel</span>
+          </button>
+
+          <button onclick="switchView('emails')" id="nav-emails" class="nav-item flex items-center gap-3 px-3.5 py-2.5 rounded-xl font-medium text-slate-300 hover:text-white hover:bg-emerald-500/10 transition-all text-left">
+            <i class="fa-solid fa-envelope w-5 text-center text-blue-400"></i>
+            <span>Database Email</span>
+          </button>
+
+          <button onclick="switchView('laporan')" id="nav-laporan" class="nav-item flex items-center justify-between px-3.5 py-2.5 rounded-xl font-medium text-slate-300 hover:text-white hover:bg-emerald-500/10 transition-all text-left">
+            <div class="flex items-center gap-3">
+              <i class="fa-solid fa-clipboard-check w-5 text-center text-emerald-400"></i>
+              <span>Laporan Kerja</span>
+            </div>
+            <span id="navLaporanBadge" class="hidden text-[10px] font-bold px-2 py-0.5 rounded-full bg-amber-500/20 text-amber-300 border border-amber-500/30">0</span>
+          </button>
+
+          <div id="navSectionFinance" class="text-[10px] uppercase tracking-wider font-bold text-slate-500 px-3 pt-4 pb-1">Keuangan & Produksi</div>
+
+          <button onclick="switchView('finance')" id="nav-finance" class="nav-item flex items-center gap-3 px-3.5 py-2.5 rounded-xl font-medium text-slate-300 hover:text-white hover:bg-emerald-500/10 transition-all text-left">
+            <i class="fa-solid fa-wallet w-5 text-center text-amber-400"></i>
+            <span>Keuangan Studio</span>
+          </button>
+
+          <button onclick="switchView('materi')" id="nav-materi" class="nav-item flex items-center gap-3 px-3.5 py-2.5 rounded-xl font-medium text-slate-300 hover:text-white hover:bg-emerald-500/10 transition-all text-left">
+            <i class="fa-solid fa-graduation-cap w-5 text-center text-teal-400"></i>
+            <span>Materi Edukasi</span>
+          </button>
+
+          <button onclick="switchView('tools')" id="nav-tools" class="nav-item flex items-center gap-3 px-3.5 py-2.5 rounded-xl font-medium text-slate-300 hover:text-white hover:bg-emerald-500/10 transition-all text-left">
+            <i class="fa-solid fa-wand-magic-sparkles w-5 text-center text-purple-400"></i>
+            <span>Direktori Tools</span>
+          </button>
+
+          <!-- Super Admin Only Sections -->
+          <div id="navAdminGroup" class="hidden">
+            <div class="text-[10px] uppercase tracking-wider font-bold text-emerald-500/80 px-3 pt-4 pb-1">Super Admin Panel</div>
+
+            <button onclick="switchView('adsense')" id="nav-adsense" class="nav-item flex items-center gap-3 px-3.5 py-2.5 rounded-xl font-medium text-slate-300 hover:text-white hover:bg-emerald-500/10 transition-all text-left">
+              <i class="fa-solid fa-shield-halved w-5 text-center text-yellow-400"></i>
+              <span>Database AdSense</span>
+            </button>
+
+            <button onclick="switchView('users')" id="nav-users" class="nav-item flex items-center justify-between px-3.5 py-2.5 rounded-xl font-medium text-slate-300 hover:text-white hover:bg-emerald-500/10 transition-all text-left">
+              <div class="flex items-center gap-3">
+                <i class="fa-solid fa-users-gear w-5 text-center text-emerald-400"></i>
+                <span>Database Pengguna</span>
+              </div>
+              <span id="navUsersPendingBadge" class="hidden text-[10px] font-bold px-2 py-0.5 rounded-full bg-amber-500/20 text-amber-400 border border-amber-500/30">0</span>
+            </button>
+
+            <button onclick="switchView('logs')" id="nav-logs" class="nav-item flex items-center gap-3 px-3.5 py-2.5 rounded-xl font-medium text-slate-300 hover:text-white hover:bg-emerald-500/10 transition-all text-left">
+              <i class="fa-solid fa-clock-rotate-left w-5 text-center text-sky-400"></i>
+              <span>Log Aktivitas</span>
+            </button>
+
+            <button onclick="openTrashBinModal()" id="nav-trash" class="nav-item flex items-center gap-3 px-3.5 py-2.5 rounded-xl font-medium text-slate-400 hover:text-rose-400 hover:bg-rose-500/10 transition-all text-left">
+              <i class="fa-solid fa-trash-can w-5 text-center text-rose-500"></i>
+              <span>Tong Sampah</span>
+            </button>
+          </div>
+        </nav>
+      </div>
+
+      <!-- Bottom User Profile Card -->
+      <div class="p-4 border-t border-emerald-500/15 bg-[#060d09]/60">
+        <div class="flex items-center justify-between gap-2">
+          <button type="button" onclick="openMyProfileModal()" title="Profil Saya & Ganti Kata Sandi" class="flex items-center gap-3 min-w-0 flex-1 text-left p-1 -m-1 rounded-xl hover:bg-emerald-500/10 transition-colors cursor-pointer">
+            <div id="sidebarUserAvatar" class="w-9 h-9 rounded-full bg-emerald-500/20 border border-emerald-500/30 flex items-center justify-center font-bold text-emerald-400 text-sm shrink-0">
+              U
+            </div>
+            <div class="min-w-0">
+              <p id="sidebarUserName" class="text-xs font-bold text-white truncate">Pengguna</p>
+              <p id="sidebarUserRole" class="text-[10px] text-emerald-400 font-semibold tracking-wide uppercase truncate">OPERATOR</p>
+            </div>
+          </button>
+          <button type="button" onclick="openMyProfileModal()" title="Profil & Ganti Sandi" class="p-2 rounded-lg text-slate-400 hover:text-emerald-400 hover:bg-emerald-500/10 transition-colors shrink-0">
+            <i class="fa-solid fa-user-gear text-xs"></i>
+          </button>
+          <button type="button" onclick="logoutAction()" title="Keluar Aplikasi" class="p-2 rounded-lg text-slate-400 hover:text-rose-400 hover:bg-rose-500/10 transition-colors shrink-0">
+            <i class="fa-solid fa-arrow-right-from-bracket"></i>
+          </button>
+        </div>
+      </div>
+    </aside>
+
+    <!-- Sidebar Overlay for Mobile -->
+    <div id="sidebarBackdrop" class="fixed inset-0 bg-black/60 backdrop-blur-sm z-30 hidden md:hidden"></div>
+
+    <!-- ========================================================================= -->
+    <!-- 🖥️ MAIN VIEW CONTAINER                                                   -->
+    <!-- ========================================================================= -->
+    <main class="flex-1 md:ml-72 flex flex-col min-h-screen pb-20 md:pb-8 min-w-0 w-full md:w-[calc(100%-18rem)] max-w-full md:max-w-[calc(100%-18rem)] overflow-x-hidden">
+      
+      <!-- Top Header Bar -->
+      <header class="sticky top-0 z-20 bg-[#07120b]/90 backdrop-blur-md border-b border-emerald-500/15 px-4 md:px-6 py-3.5 flex items-center justify-between min-w-0 w-full">
+        <div class="flex items-center gap-3">
+          <button id="btnOpenMobileSidebar" class="md:hidden p-2 rounded-xl text-slate-300 hover:text-white hover:bg-emerald-500/10">
+            <i class="fa-solid fa-bars text-lg"></i>
+          </button>
+          <div>
+            <h1 class="text-sm md:text-base font-bold text-white flex items-center gap-2">
+              <span id="topHeaderGreeting">Halo, Operator</span>
+              <span id="topHeaderRoleBadge" class="text-[10px] font-bold px-2 py-0.5 rounded-full bg-emerald-500/20 text-emerald-400 border border-emerald-500/30">Pengguna</span>
+            </h1>
+            <p id="headerClock" class="text-[11px] text-slate-400 font-mono">00:00:00 WIB</p>
+          </div>
+        </div>
+
+        <div class="flex items-center gap-2.5">
+          <!-- Tombol Catat Kerja Cepat (Jam Server WIB Otomatis) -->
+          <button type="button" onclick="openQuickWorkLogModal()" id="btnQuickWorkLogHeader" title="Catat aktivitas kerja luar aplikasi (jam tercatat otomatis WIB)" class="hidden px-3 py-2 rounded-xl btn-neon text-xs font-bold flex items-center gap-1.5 shadow-lg shrink-0 cursor-pointer">
+            <i class="fa-solid fa-bolt"></i>
+            <span class="hidden sm:inline">Catat Kerja</span>
+          </button>
+
+          <!-- Refresh Data Button -->
+          <button onclick="refreshCurrentViewData()" id="btnRefreshData" title="Muat Ulang Data" class="p-2.5 rounded-xl border border-emerald-500/20 bg-emerald-500/5 text-emerald-400 hover:bg-emerald-500/15 transition-all">
+            <i class="fa-solid fa-rotate text-sm"></i>
+          </button>
+
+          <!-- Notification Bell & Drawer Trigger -->
+          <div class="relative">
+            <button onclick="toggleNotificationDrawer()" id="btnNotificationBell" class="p-2.5 rounded-xl border border-emerald-500/20 bg-emerald-500/5 text-slate-300 hover:text-white hover:bg-emerald-500/15 transition-all relative">
+              <i class="fa-regular fa-bell text-sm"></i>
+              <span id="notifBadgeCount" class="hidden absolute -top-1 -right-1 w-4 h-4 rounded-full bg-rose-500 text-white text-[9px] font-bold flex items-center justify-center animate-pulse">0</span>
+            </button>
+
+            <!-- Notification Dropdown Menu -->
+            <div id="notifDropdown" class="hidden absolute right-0 mt-2 w-80 max-w-[90vw] glass-card p-4 shadow-2xl z-50">
+              <div class="flex items-center justify-between pb-3 border-b border-emerald-500/15 mb-2">
+                <span class="text-xs font-bold text-white flex items-center gap-2">
+                  <i class="fa-solid fa-bell text-emerald-400"></i> Notifikasi Sistem
+                </span>
+                <span id="notifCountText" class="text-[10px] text-slate-400">0 Pemberitahuan</span>
+              </div>
+              <div id="notifListContainer" class="flex flex-col gap-2 max-h-64 overflow-y-auto custom-scrollbar text-xs">
+                <p class="text-slate-400 text-center py-4">Tidak ada notifikasi saat ini.</p>
+              </div>
+            </div>
+          </div>
+        </div>
+      </header>
+
+      <!-- Sub-Views Content Wrapper -->
+      <div class="p-3 sm:p-4 md:p-6 lg:p-8 flex-1 flex flex-col gap-6 min-w-0 w-full max-w-full">
+
+        <!-- ===================================================================== -->
+        <!-- 1. VIEW DASHBOARD EKSEKUTIF                                           -->
+        <!-- ===================================================================== -->
+        <section id="view-dashboard" class="view-panel flex flex-col gap-6 min-w-0 w-full">
+          <div class="flex flex-col md:flex-row md:items-center justify-between gap-4">
+            <div>
+              <h2 class="text-xl md:text-2xl font-black text-white tracking-tight flex items-center gap-2.5">
+                <i class="fa-solid fa-chart-pie text-emerald-400"></i>
+                Dashboard Eksekutif
+              </h2>
+              <p class="text-xs md:text-sm text-slate-400">Ringkasan performa portofolio channel YouTube dan estimasi pendapatan studio.</p>
+            </div>
+            <div class="flex flex-wrap items-center gap-2.5">
+              <span id="dashboardScopeBadge" class="hidden text-xs px-3 py-1.5 rounded-xl border border-sky-500/30 bg-sky-500/10 text-sky-300 font-semibold flex items-center gap-1.5"></span>
+              <span class="text-xs px-3 py-1.5 rounded-xl border border-emerald-500/20 bg-[#07120b] text-emerald-400 font-semibold flex items-center gap-2">
+                <span class="w-2 h-2 rounded-full bg-emerald-400 animate-ping"></span>
+                Mode Real-time
+              </span>
+            </div>
+          </div>
+
+          <!-- 6 Kartu KPI Terpadu (Responsive 2 Col HP / 3 Col Laptop / 6 Col PC) -->
+          <div class="grid grid-cols-2 sm:grid-cols-3 xl:grid-cols-6 gap-3.5">
+            <!-- Total Channel -->
+            <div class="glass-card p-4 flex flex-col gap-2">
+              <div class="flex items-center justify-between text-slate-400 text-xs">
+                <span>Total Channel</span>
+                <i class="fa-brands fa-youtube text-red-500"></i>
+              </div>
+              <p id="kpiTotalChannels" class="text-xl md:text-2xl font-black text-white">0</p>
+              <span class="text-[10px] text-slate-400">Seluruh channel studio</span>
+            </div>
+
+            <!-- Channel Aktif -->
+            <div class="glass-card p-4 flex flex-col gap-2">
+              <div class="flex items-center justify-between text-slate-400 text-xs">
+                <span>Channel Aktif</span>
+                <span class="w-2.5 h-2.5 rounded-full bg-emerald-400 shadow-sm shadow-emerald-400"></span>
+              </div>
+              <p id="kpiActiveChannels" class="text-xl md:text-2xl font-black text-emerald-400">0</p>
+              <span class="text-[10px] text-emerald-500/80">Produksi berjalan</span>
+            </div>
+
+            <!-- Channel Tidak Aktif -->
+            <div class="glass-card p-4 flex flex-col gap-2">
+              <div class="flex items-center justify-between text-slate-400 text-xs">
+                <span>Tidak Aktif</span>
+                <span class="w-2.5 h-2.5 rounded-full bg-rose-500 shadow-sm shadow-rose-500"></span>
+              </div>
+              <p id="kpiInactiveChannels" class="text-xl md:text-2xl font-black text-rose-400">0</p>
+              <span class="text-[10px] text-rose-400/80">Perlu reaktivasi</span>
+            </div>
+
+            <!-- Sudah Monetize -->
+            <div class="glass-card p-4 flex flex-col gap-2">
+              <div class="flex items-center justify-between text-slate-400 text-xs">
+                <span>Sudah Monet</span>
+                <i class="fa-solid fa-star text-amber-400"></i>
+              </div>
+              <p id="kpiMonetizedChannels" class="text-xl md:text-2xl font-black text-amber-400">0</p>
+              <span class="text-[10px] text-amber-400/80">Menghasilkan cuan</span>
+            </div>
+
+            <!-- Belum Monetize -->
+            <div class="glass-card p-4 flex flex-col gap-2">
+              <div class="flex items-center justify-between text-slate-400 text-xs">
+                <span>Belum Monet</span>
+                <i class="fa-regular fa-clock text-slate-400"></i>
+              </div>
+              <p id="kpiUnmonetizedChannels" class="text-xl md:text-2xl font-black text-slate-300">0</p>
+              <span class="text-[10px] text-slate-400">Kejar jam tayang</span>
+            </div>
+
+            <!-- Pendapatan Bulan Berjalan -->
+            <div class="glass-card p-4 flex flex-col gap-2 col-span-2 md:col-span-1 lg:col-span-1 border-emerald-500/40 bg-gradient-to-b from-emerald-950/20 to-transparent">
+              <div class="flex items-center justify-between text-emerald-400 text-xs font-semibold">
+                <span>Estimasi Bulan Ini</span>
+                <i class="fa-solid fa-rupiah-sign"></i>
+              </div>
+              <p id="kpiTotalRevenue" class="text-lg md:text-xl font-black text-emerald-400 truncate">Rp 0</p>
+              <span class="text-[10px] text-emerald-400/80">Snapshot bulan aktif</span>
+            </div>
+          </div>
+
+          <!-- 2 Papan Peringkat (Leaderboards) Bersebelahan di PC -->
+          <div class="grid grid-cols-1 lg:grid-cols-2 gap-6">
+            
+            <!-- Top 10 Belum Monetize (Skor: Subs x 1 + Jam x 2) -->
+            <div class="glass-card p-5 flex flex-col gap-4">
+              <div class="flex items-center justify-between pb-3 border-b border-emerald-500/15">
+                <div>
+                  <h3 class="text-base font-bold text-white flex items-center gap-2">
+                    <i class="fa-solid fa-trophy text-slate-400"></i>
+                    Top 10 Belum Monetize
+                  </h3>
+                  <p class="text-[11px] text-slate-400">Prioritas optimasi: Skor = (Subs &times; 1) + (Jam Tayang &times; 2)</p>
+                </div>
+                <span class="text-xs px-2.5 py-1 rounded-lg bg-emerald-500/10 text-emerald-400 font-semibold border border-emerald-500/20">Rank 1–10</span>
+              </div>
+
+              <div id="leaderboardUnmonetized" class="flex flex-col gap-2.5 max-h-[380px] overflow-y-auto custom-scrollbar">
+                <div class="text-center py-8 text-slate-400 text-xs">Memuat data peringkat...</div>
+              </div>
+            </div>
+
+            <!-- Top 10 Sudah Monetize (Estimasi Pendapatan Bulan Ini) -->
+            <div class="glass-card p-5 flex flex-col gap-4">
+              <div class="flex items-center justify-between pb-3 border-b border-emerald-500/15">
+                <div>
+                  <h3 class="text-base font-bold text-white flex items-center gap-2">
+                    <i class="fa-solid fa-crown text-amber-400"></i>
+                    Top 10 Sudah Monetize
+                  </h3>
+                  <p class="text-[11px] text-slate-400">Kontributor pendapatan terbesar bulan berjalan</p>
+                </div>
+                <span class="text-xs px-2.5 py-1 rounded-lg bg-amber-500/10 text-amber-400 font-semibold border border-amber-500/20">Rank 1–10</span>
+              </div>
+
+              <div id="leaderboardMonetized" class="flex flex-col gap-2.5 max-h-[380px] overflow-y-auto custom-scrollbar">
+                <div class="text-center py-8 text-slate-400 text-xs">Memuat data peringkat...</div>
+              </div>
+            </div>
+          </div>
+        </section>
+
+        <!-- ===================================================================== -->
+        <!-- 2. VIEW JADWAL PENGERJAAN & TARGET HARI INI                           -->
+        <!-- ===================================================================== -->
+        <section id="view-jadwal" class="view-panel hidden flex flex-col gap-6">
+          <!-- Header Bar: Title, Subtitle, and Calendar Controls -->
+          <div class="flex flex-col lg:flex-row lg:items-center justify-between gap-4">
+            <div>
+              <div class="flex flex-wrap items-center gap-2.5">
+                <h2 class="text-xl md:text-2xl font-black text-white tracking-tight flex items-center gap-2.5">
+                  Jadwal Pengerjaan
+                </h2>
+                <span id="jadwalReadOnlyBadge" class="hidden text-[10px] font-bold px-2.5 py-0.5 rounded-full bg-amber-500/20 text-amber-300 border border-amber-500/30">Mode Lihat Saja</span>
+              </div>
+              <p class="text-xs md:text-sm text-slate-400">Kalender bulanan interaktif target upload dan timeline video</p>
+            </div>
+            
+            <!-- Calendar Navigation Buttons -->
+            <div class="flex items-center flex-wrap gap-2">
+              <button onclick="navigateCalendarYear(-1)" title="Tahun Sebelumnya" class="w-9 h-9 rounded-xl bg-slate-900 border border-slate-800 text-slate-300 hover:text-white hover:border-emerald-500/50 flex items-center justify-center transition-all cursor-pointer">
+                <i class="fa-solid fa-angles-left text-xs"></i>
+              </button>
+              <button onclick="navigateCalendarMonth(-1)" title="Bulan Sebelumnya" class="w-9 h-9 rounded-xl bg-slate-900 border border-slate-800 text-slate-300 hover:text-white hover:border-emerald-500/50 flex items-center justify-center transition-all cursor-pointer">
+                <i class="fa-solid fa-chevron-left text-xs"></i>
+              </button>
+              
+              <div id="calMonthYear" class="px-5 py-2 rounded-xl bg-slate-950 border border-slate-800 text-sm font-bold text-white min-w-[150px] text-center shadow-inner tracking-wide">
+                November 2026
+              </div>
+              
+              <button onclick="navigateCalendarMonth(1)" title="Bulan Berikutnya" class="w-9 h-9 rounded-xl bg-slate-900 border border-slate-800 text-slate-300 hover:text-white hover:border-emerald-500/50 flex items-center justify-center transition-all cursor-pointer">
+                <i class="fa-solid fa-chevron-right text-xs"></i>
+              </button>
+              <button onclick="navigateCalendarYear(1)" title="Tahun Berikutnya" class="w-9 h-9 rounded-xl bg-slate-900 border border-slate-800 text-slate-300 hover:text-white hover:border-emerald-500/50 flex items-center justify-center transition-all cursor-pointer">
+                <i class="fa-solid fa-angles-right text-xs"></i>
+              </button>
+              
+              <button onclick="goToTodayCalendar()" class="ml-1 px-4 py-2 rounded-xl bg-emerald-600 hover:bg-emerald-500 text-white text-xs font-bold flex items-center gap-2 shadow-lg shadow-emerald-950/40 transition-all cursor-pointer">
+                <i class="fa-solid fa-calendar-day"></i>
+                Hari Ini
+              </button>
+            </div>
+          </div>
+
+          <!-- 2-Column Split Layout: Calendar (Left ~65%) & Sidebar Queue (Right ~35%) -->
+          <div class="grid grid-cols-1 xl:grid-cols-12 gap-5 items-start">
+            
+            <!-- LEFT COLUMN: 7-Column Monthly Calendar Grid (xl:col-span-8) -->
+            <div class="xl:col-span-8 glass-card p-4 md:p-5 flex flex-col gap-3 rounded-2xl bg-[#07130b]/80 border border-emerald-500/20 shadow-xl min-w-0">
+              <div class="overflow-x-auto custom-scrollbar">
+                <div class="min-w-[600px] flex flex-col gap-3">
+                  <!-- Calendar Day Names Header (Senin - Minggu) -->
+                  <div class="grid grid-cols-7 gap-2 text-center text-xs font-bold py-2 border-b border-emerald-500/15">
+                    <div class="text-slate-400">SEN</div>
+                    <div class="text-slate-400">SEL</div>
+                    <div class="text-slate-400">RAB</div>
+                    <div class="text-slate-400">KAM</div>
+                    <div class="text-slate-400">JUM</div>
+                    <div class="text-slate-400">SAB</div>
+                    <div class="text-rose-400">MIN</div>
+                  </div>
+
+                  <!-- Calendar Month Grid Container -->
+                  <div id="calendarGrid" class="grid grid-cols-7 gap-2 min-h-[500px]">
+                    <!-- Dynamically generated day cells -->
+                  </div>
+                </div>
+              </div>
+            </div>
+
+            <!-- RIGHT COLUMN: Task List & Filtering (xl:col-span-4) -->
+            <div class="xl:col-span-4 glass-card p-4 md:p-5 flex flex-col gap-4 rounded-2xl bg-[#07130b]/80 border border-emerald-500/20 shadow-xl min-w-0">
+              <!-- Tabs: Antrean Jadwal vs Tanggal Terpilih -->
+              <div class="grid grid-cols-2 p-1 bg-slate-950/80 rounded-xl border border-emerald-500/15 text-xs font-bold">
+                <button id="tabBtnAntrean" onclick="switchJadwalTab('antrean')" class="py-2.5 px-3 rounded-lg bg-emerald-950/60 text-emerald-300 border border-emerald-500/30 flex items-center justify-center gap-1.5 transition-all cursor-pointer">
+                  <i class="fa-solid fa-bars-staggered"></i>
+                  Antrean Jadwal
+                </button>
+                <button id="tabBtnTanggal" onclick="switchJadwalTab('tanggal')" class="py-2.5 px-3 rounded-lg text-slate-400 hover:text-white flex items-center justify-center gap-1.5 transition-all cursor-pointer">
+                  <i class="fa-solid fa-calendar-day"></i>
+                  Tanggal Terpilih
+                </button>
+              </div>
+
+              <!-- Admin User Filter & Team Pills -->
+              <div class="flex flex-col gap-2.5">
+                <div class="flex items-center justify-between">
+                  <span class="text-xs font-bold text-slate-300 flex items-center gap-1.5">
+                    <i class="fa-solid fa-users text-emerald-400"></i>
+                    Filter Tim:
+                  </span>
+                  <!-- Dropdown for Admin Panel -->
+                  <select id="jadwalFilterUser" onchange="onJadwalUserFilterChange(this.value)" class="text-xs py-1 px-2.5 rounded-lg bg-slate-950 border border-emerald-500/30 text-emerald-300 focus:outline-none focus:border-emerald-500 cursor-pointer">
+                    <option value="">Semua Tim</option>
+                  </select>
+                </div>
+
+                <!-- Team Pills Container -->
+                <div id="jadwalTeamPillsContainer" class="flex flex-wrap gap-1.5 max-h-24 overflow-y-auto custom-scroll pr-1">
+                  <!-- e.g. Semua (107), Owner Boss (31), MAMAN (4) -->
+                </div>
+              </div>
+
+              <!-- Active Context Header for Right Column -->
+              <div class="flex items-center justify-between pb-2 border-b border-emerald-500/15">
+                <span id="jadwalListHeading" class="text-xs font-bold text-slate-300 flex items-center gap-1.5">
+                  <i class="fa-solid fa-list-check text-emerald-400"></i>
+                  Daftar Pengerjaan (<span id="jadwalListCount">0</span>)
+                </span>
+                <span id="jadwalListSubbadge" class="text-[10px] px-2 py-0.5 rounded-full bg-emerald-500/10 text-emerald-400 border border-emerald-500/20">Semua Jadwal</span>
+              </div>
+
+              <!-- Task Cards Container (Scrollable) -->
+              <div id="jadwalCardsListContainer" class="flex flex-col gap-3 max-h-[580px] overflow-y-auto custom-scroll pr-1">
+                <!-- Dynamically populated cards with 'Mulai Kerjakan' button -->
+                <div class="text-center py-12 text-slate-400 text-xs">
+                  Memuat jadwal pengerjaan...
+                </div>
+              </div>
+            </div>
+
+          </div>
+        </section>
+
+        <!-- ===================================================================== -->
+        <!-- 3. VIEW DATABASE CHANNEL (10 KOLOM MANDIRI ANTI-GABUNG)               -->
+        <!-- ===================================================================== -->
+        <section id="view-database" class="view-panel hidden flex flex-col gap-6">
+          <div class="flex flex-col md:flex-row md:items-center justify-between gap-4">
+            <div>
+              <div class="flex flex-wrap items-center gap-3">
+                <h2 class="text-xl md:text-2xl font-black text-white tracking-tight flex items-center gap-2.5">
+                  <i class="fa-brands fa-youtube text-red-500"></i>
+                  Database Channel YouTube
+                </h2>
+                <span id="channelTotalBadge" class="text-xs font-bold px-3 py-1 rounded-full bg-emerald-500/20 text-emerald-400 border border-emerald-500/30 flex items-center gap-1.5 shadow-sm">
+                  <i class="fa-brands fa-youtube text-[10px]"></i> Total: <span id="channelTotalCount">0</span> Channel
+                </span>
+                <span id="channelReadOnlyBadge" class="hidden text-[10px] font-bold px-2.5 py-0.5 rounded-full bg-amber-500/20 text-amber-300 border border-amber-500/30">Mode Lihat Saja</span>
+              </div>
+              <p class="text-xs md:text-sm text-slate-400 mt-1">Manajemen portofolio channel, aset Drive, jam publish, dan riwayat bulanan.</p>
+            </div>
+            <div class="flex items-center gap-3">
+              <button id="btnAddChannel" onclick="openChannelFormModal()" class="btn-neon px-4 py-2.5 rounded-xl text-xs flex items-center gap-2 shadow-lg shadow-emerald-500/20">
+                <i class="fa-solid fa-plus"></i>
+                <span>Tambah Channel</span>
+              </button>
+            </div>
+          </div>
+
+          <!-- Filter & Search Controls -->
+          <div class="glass-card p-4 flex flex-col md:flex-row gap-3 items-center justify-between">
+            <div class="relative w-full md:w-80">
+              <i class="fa-solid fa-magnifying-glass absolute left-3.5 top-1/2 -translate-y-1/2 text-slate-400 text-xs"></i>
+              <input type="text" id="channelSearchInput" oninput="debounceChannelSearch()" placeholder="Cari nama channel / pengelola..." class="glass-input w-full pl-9 pr-4 py-2 rounded-xl text-xs">
+            </div>
+
+            <div class="flex flex-wrap items-center gap-2.5 w-full md:w-auto">
+              <select id="filterKategori" onchange="applyChannelFilters()" class="glass-input px-3 py-2 rounded-xl text-xs">
+                <option value="">Semua Kategori</option>
+              </select>
+
+              <select id="filterNiche" onchange="applyChannelFilters()" class="glass-input px-3 py-2 rounded-xl text-xs">
+                <option value="">Semua Niche</option>
+              </select>
+
+              <select id="filterStatus" onchange="applyChannelFilters()" class="glass-input px-3 py-2 rounded-xl text-xs">
+                <option value="">Semua Status</option>
+                <option value="Aktif">🟢 Aktif</option>
+                <option value="Tidak Aktif">🔴 Tidak Aktif</option>
+              </select>
+
+              <select id="filterMonet" onchange="applyChannelFilters()" class="glass-input px-3 py-2 rounded-xl text-xs">
+                <option value="">Semua Monet</option>
+                <option value="YES">⭐ YES (Monet)</option>
+                <option value="NO">⚪ NO (Belum Monet)</option>
+              </select>
+
+              <button type="button" onclick="resetChannelFilters()" title="Reset Semua Filter Channel" class="px-3 py-2 rounded-xl bg-white/5 hover:bg-white/10 border border-emerald-500/20 text-slate-300 hover:text-white text-xs font-semibold flex items-center gap-1.5 transition-colors">
+                <i class="fa-solid fa-rotate-left text-[11px]"></i>
+                <span>Reset</span>
+              </button>
+            </div>
+          </div>
+
+          <!-- Tabel 10 Kolom Mandiri (Responsive Scroll) -->
+          <div class="glass-card overflow-hidden">
+            <div class="table-scroll-container custom-scrollbar">
+              <table class="w-full text-left text-xs whitespace-nowrap table-sticky-header">
+                <thead class="bg-[#0a1710] border-b border-emerald-500/15 text-slate-400 uppercase tracking-wider font-semibold sticky top-0 z-20">
+                  <tr>
+                    <th class="py-3 px-4">Logo</th>
+                    <th class="py-3 px-4">Nama Channel & Link</th>
+                    <th class="py-3 px-4">Subscribers</th>
+                    <th class="py-3 px-4">Jam Tonton / Pendapatan</th>
+                    <th class="py-3 px-4">Pengelola</th>
+                    <th class="py-3 px-4">Kategori</th>
+                    <th class="py-3 px-4">Niche</th>
+                    <th class="py-3 px-4">Status</th>
+                    <th class="py-3 px-4">Monetisasi</th>
+                    <th class="py-3 px-4 text-center">Aksi</th>
+                  </tr>
+                </thead>
+                <tbody id="channelTableBody" class="divide-y divide-emerald-500/10">
+                  <tr>
+                    <td colspan="10" class="text-center py-12 text-slate-400">Memuat database channel...</td>
+                  </tr>
+                </tbody>
+              </table>
+            </div>
+
+            <!-- Pagination Bar -->
+            <div class="p-4 border-t border-emerald-500/15 flex flex-col sm:flex-row items-center justify-between gap-3 text-xs">
+              <div class="flex items-center gap-2 text-slate-400">
+                <span>Baris per halaman:</span>
+                <select id="channelPageSize" onchange="changeChannelPageSize()" class="glass-input px-2 py-1 rounded-lg text-xs">
+                  <option value="10">10</option>
+                  <option value="20" selected>20</option>
+                  <option value="50">50</option>
+                  <option value="100">100</option>
+                </select>
+                <span id="channelPaginationSummary" class="ml-2">Menampilkan 0 dari 0</span>
+              </div>
+              <div class="flex items-center gap-2">
+                <button onclick="prevChannelPage()" id="btnPrevChannelPage" class="px-3 py-1.5 rounded-lg border border-emerald-500/20 bg-emerald-500/5 text-slate-300 hover:text-white disabled:opacity-40">
+                  <i class="fa-solid fa-chevron-left mr-1"></i> Prev
+                </button>
+                <span id="channelCurrentPageNum" class="font-bold text-emerald-400 px-2">1</span>
+                <button onclick="nextChannelPage()" id="btnNextChannelPage" class="px-3 py-1.5 rounded-lg border border-emerald-500/20 bg-emerald-500/5 text-slate-300 hover:text-white disabled:opacity-40">
+                  Next <i class="fa-solid fa-chevron-right ml-1"></i>
+                </button>
+              </div>
+            </div>
+          </div>
+        </section>
+
+        <!-- ===================================================================== -->
+        <!-- 4. VIEW DATABASE EMAIL                                                -->
+        <!-- ===================================================================== -->
+        <section id="view-emails" class="view-panel hidden flex flex-col gap-6">
+          <div class="flex flex-col md:flex-row md:items-center justify-between gap-4">
+            <div>
+              <div class="flex flex-wrap items-center gap-3">
+                <h2 class="text-xl md:text-2xl font-black text-white tracking-tight flex items-center gap-2.5">
+                  <i class="fa-solid fa-envelope text-blue-400"></i>
+                  Database Email & Kredensial
+                </h2>
+                <span id="emailTotalBadge" class="text-xs font-bold px-3 py-1 rounded-full bg-blue-500/20 text-blue-400 border border-blue-500/30 flex items-center gap-1.5 shadow-sm">
+                  <i class="fa-solid fa-layer-group text-[10px]"></i> Total: <span id="emailTotalCount">0</span> Email
+                </span>
+                <span id="emailReadOnlyBadge" class="hidden text-[10px] font-bold px-2.5 py-0.5 rounded-full bg-amber-500/20 text-amber-300 border border-amber-500/30">Mode Lihat Saja</span>
+              </div>
+              <p class="text-xs md:text-sm text-slate-400 mt-1">Kredensial akun email, kunci 2FA, kode cadangan terformat koma, dan channel terhubung.</p>
+            </div>
+            <div class="flex items-center gap-3">
+              <button id="btnAddEmail" onclick="openEmailFormModal()" class="btn-neon px-4 py-2.5 rounded-xl text-xs flex items-center gap-2">
+                <i class="fa-solid fa-plus"></i>
+                <span>Tambah Email</span>
+              </button>
+            </div>
+          </div>
+
+          <!-- Search & Filter Toolbar -->
+          <div class="glass-card p-4 flex flex-col md:flex-row gap-3 items-center justify-between">
+            <div class="relative w-full md:w-80">
+              <i class="fa-solid fa-magnifying-glass absolute left-3.5 top-1/2 -translate-y-1/2 text-slate-400 text-xs"></i>
+              <input type="text" id="emailSearchInput" oninput="debounceEmailSearch()" placeholder="Cari alamat email / pemilik..." class="glass-input w-full pl-9 pr-4 py-2 rounded-xl text-xs">
+            </div>
+
+            <div class="flex flex-wrap items-center gap-2.5 w-full md:w-auto">
+              <select id="filterEmailPemilik" onchange="applyEmailFilters()" class="glass-input px-3 py-2 rounded-xl text-xs">
+                <option value="">Semua Pemilik</option>
+              </select>
+
+              <button onclick="resetEmailFilters()" title="Reset Filter" class="p-2 rounded-xl border border-emerald-500/20 bg-emerald-500/5 text-slate-400 hover:text-white text-xs transition-colors">
+                <i class="fa-solid fa-rotate-left"></i>
+              </button>
+            </div>
+          </div>
+
+          <!-- Email Table -->
+          <div class="glass-card overflow-hidden">
+            <div class="table-scroll-container custom-scrollbar">
+              <table class="w-full text-left text-xs whitespace-nowrap table-sticky-header">
+                <thead class="bg-[#0a1710] border-b border-emerald-500/15 text-slate-400 uppercase tracking-wider font-semibold sticky top-0 z-20">
+                  <tr>
+                    <th class="py-3 px-4">Alamat Email</th>
+                    <th class="py-3 px-4">Password</th>
+                    <th class="py-3 px-4">Kunci 2FA</th>
+                    <th class="py-3 px-4">Nomor Pemulihan</th>
+                    <th class="py-3 px-4">Email Pemulihan</th>
+                    <th class="py-3 px-4">Kode Cadangan</th>
+                    <th class="py-3 px-4">Pemilik</th>
+                    <th class="py-3 px-4">Channel Terhubung</th>
+                    <th class="py-3 px-4 text-center">Aksi</th>
+                  </tr>
+                </thead>
+                <tbody id="emailTableBody" class="divide-y divide-emerald-500/10">
+                  <tr>
+                    <td colspan="9" class="text-center py-12 text-slate-400">Memuat database email...</td>
+                  </tr>
+                </tbody>
+              </table>
+            </div>
+
+            <!-- Email Pagination Bar -->
+            <div class="p-4 border-t border-emerald-500/15 flex flex-col sm:flex-row items-center justify-between gap-3 text-xs">
+              <div class="flex items-center gap-2 text-slate-400">
+                <span>Baris per halaman:</span>
+                <select id="emailPageSize" onchange="changeEmailPageSize()" class="glass-input px-2 py-1 rounded-lg text-xs">
+                  <option value="10" selected>10</option>
+                  <option value="20">20</option>
+                  <option value="50">50</option>
+                  <option value="100">100</option>
+                </select>
+                <span id="emailPaginationSummary" class="ml-2">Menampilkan 0 dari 0 email</span>
+              </div>
+              <div class="flex items-center gap-2">
+                <button onclick="prevEmailPage()" id="btnPrevEmailPage" class="px-3 py-1.5 rounded-lg border border-emerald-500/20 bg-emerald-500/5 text-slate-300 hover:text-white disabled:opacity-40">
+                  <i class="fa-solid fa-chevron-left mr-1"></i> Prev
+                </button>
+                <span id="emailCurrentPageNum" class="font-bold text-emerald-400 px-2">1</span>
+                <button onclick="nextEmailPage()" id="btnNextEmailPage" class="px-3 py-1.5 rounded-lg border border-emerald-500/20 bg-emerald-500/5 text-slate-300 hover:text-white disabled:opacity-40">
+                  Next <i class="fa-solid fa-chevron-right ml-1"></i>
+                </button>
+              </div>
+            </div>
+          </div>
+        </section>
+
+        <!-- ===================================================================== -->
+        <!-- 5. VIEW DATABASE ADSENSE (ADMIN PANEL)                                -->
+        <!-- ===================================================================== -->
+        <section id="view-adsense" class="view-panel hidden flex flex-col gap-6">
+          <div class="flex flex-col md:flex-row md:items-center justify-between gap-4">
+            <div>
+              <div class="flex flex-wrap items-center gap-2">
+                <h2 class="text-xl md:text-2xl font-black text-white tracking-tight flex items-center gap-2.5">
+                  <i class="fa-solid fa-shield-halved text-yellow-400"></i>
+                  Database Akun Google AdSense
+                </h2>
+                <span class="text-[10px] font-bold px-2 py-0.5 rounded-full bg-yellow-500/20 text-yellow-400 border border-yellow-500/30">Admin Panel</span>
+                <span id="adsenseReadOnlyBadge" class="hidden text-[10px] font-bold px-2.5 py-0.5 rounded-full bg-amber-500/15 text-amber-300 border border-amber-500/30"><i class="fa-solid fa-eye mr-1"></i>Mode Lihat Saja</span>
+              </div>
+              <p class="text-xs md:text-sm text-slate-400">Penyimpanan ID AdSense pub-xxx, kredensial, verifikasi KTP, PIN, dan rekening pemilik.</p>
+            </div>
+            <div class="flex items-center gap-3">
+              <button id="btnAddAdSense" onclick="openAdSenseFormModal()" class="btn-neon px-4 py-2.5 rounded-xl text-xs flex items-center gap-2">
+                <i class="fa-solid fa-plus"></i>
+                <span>Tambah AdSense</span>
+              </button>
+            </div>
+          </div>
+
+          <!-- Search Bar -->
+          <div class="glass-card p-4 flex items-center justify-between">
+            <div class="relative w-full md:w-80">
+              <i class="fa-solid fa-magnifying-glass absolute left-3.5 top-1/2 -translate-y-1/2 text-slate-400 text-xs"></i>
+              <input type="text" id="adsenseSearchInput" oninput="debounceAdSenseSearch()" placeholder="Cari ID pub / email / nama KTP..." class="glass-input w-full pl-9 pr-4 py-2 rounded-xl text-xs">
+            </div>
+          </div>
+
+          <!-- AdSense Table -->
+          <div class="glass-card overflow-hidden">
+            <div class="table-scroll-container custom-scrollbar">
+              <table class="w-full text-left text-xs whitespace-nowrap table-sticky-header">
+                <thead class="bg-[#0a1710] border-b border-emerald-500/15 text-slate-400 uppercase tracking-wider font-semibold sticky top-0 z-20">
+                  <tr>
+                    <th class="py-3 px-4">ID Google AdSense</th>
+                    <th class="py-3 px-4">Email & Password</th>
+                    <th class="py-3 px-4">2FA & Pemulihan</th>
+                    <th class="py-3 px-4">Nama Sesuai KTP</th>
+                    <th class="py-3 px-4">Bank & No Rekening</th>
+                    <th class="py-3 px-4">Status PIN</th>
+                    <th class="py-3 px-4">Status Verifikasi</th>
+                    <th class="py-3 px-4">Foto KTP</th>
+                    <th class="py-3 px-4 text-center">Aksi</th>
+                  </tr>
+                </thead>
+                <tbody id="adsenseTableBody" class="divide-y divide-emerald-500/10">
+                  <tr>
+                    <td colspan="9" class="text-center py-12 text-slate-400">Memuat database AdSense...</td>
+                  </tr>
+                </tbody>
+              </table>
+            </div>
+          </div>
+        </section>
+
+        <!-- ===================================================================== -->
+        <!-- 6. VIEW KEUANGAN STUDIO (PEMBUKUAN KAS HARIAN)                        -->
+        <!-- ===================================================================== -->
+        <section id="view-finance" class="view-panel hidden flex flex-col gap-6">
+          <div class="flex flex-col md:flex-row md:items-center justify-between gap-4">
+            <div>
+              <div class="flex flex-wrap items-center gap-2.5">
+                <h2 class="text-xl md:text-2xl font-black text-white tracking-tight flex items-center gap-2.5">
+                  <i class="fa-solid fa-wallet text-amber-400"></i>
+                  Keuangan Studio & Arus Kas
+                </h2>
+                <span id="financeReadOnlyBadge" class="hidden text-[10px] font-bold px-2.5 py-0.5 rounded-full bg-amber-500/20 text-amber-300 border border-amber-500/30">Mode Lihat Saja</span>
+              </div>
+              <p class="text-xs md:text-sm text-slate-400">Buku kas harian operasional, rasio margin, bukti transaksi, dan foto fisik barang.</p>
+            </div>
+            <div class="flex flex-wrap items-center gap-2.5">
+              <button id="btnExportFinanceCsv" type="button" onclick="exportFinanceCsv()" class="px-3.5 py-2.5 rounded-xl border border-sky-500/30 bg-sky-500/10 text-sky-400 hover:bg-sky-500/20 text-xs font-semibold flex items-center gap-2">
+                <i class="fa-solid fa-file-csv"></i>
+                <span>Export CSV</span>
+              </button>
+              <button id="btnAddFinKat" onclick="openTambahKategoriModal()" class="px-3.5 py-2.5 rounded-xl border border-emerald-500/30 bg-emerald-500/10 text-emerald-400 hover:bg-emerald-500/20 text-xs font-semibold flex items-center gap-2">
+                <i class="fa-solid fa-tags"></i>
+                <span>+ Kategori Baru</span>
+              </button>
+              <button id="btnAddFinance" onclick="openTransaksiKeuanganModal()" class="btn-neon px-4 py-2.5 rounded-xl text-xs flex items-center gap-2">
+                <i class="fa-solid fa-plus"></i>
+                <span>Catat Transaksi</span>
+              </button>
+            </div>
+          </div>
+
+          <!-- Mini-Dashboard Visualisasi Finansial -->
+          <div class="grid grid-cols-1 md:grid-cols-3 gap-4">
+            <!-- Total Pemasukan -->
+            <div class="glass-card p-4 flex flex-col gap-2">
+              <div class="flex items-center justify-between text-emerald-400 text-xs font-semibold">
+                <span>Total Pemasukan</span>
+                <i class="fa-solid fa-arrow-down-long"></i>
+              </div>
+              <p id="financeTotalPemasukan" class="text-xl md:text-2xl font-black text-emerald-400 truncate">Rp 0</p>
+              <span id="financePemasukanSub" class="text-[10px] text-emerald-500/80">Kas masuk operasional</span>
+            </div>
+
+            <!-- Total Pengeluaran -->
+            <div class="glass-card p-4 flex flex-col gap-2">
+              <div class="flex items-center justify-between text-rose-400 text-xs font-semibold">
+                <span>Total Pengeluaran</span>
+                <i class="fa-solid fa-arrow-up-long"></i>
+              </div>
+              <p id="financeTotalPengeluaran" class="text-xl md:text-2xl font-black text-rose-400 truncate">Rp 0</p>
+              <span id="financePengeluaranSub" class="text-[10px] text-rose-400/80">Belanja & biaya studio</span>
+            </div>
+
+            <!-- Sisa Saldo Kas (Gold Glow) -->
+            <div class="glass-card p-4 flex flex-col gap-2 border-amber-500/40 bg-gradient-to-b from-amber-950/20 to-transparent">
+              <div class="flex items-center justify-between text-amber-400 text-xs font-semibold">
+                <span>Sisa Saldo Kas</span>
+                <i class="fa-solid fa-coins"></i>
+              </div>
+              <p id="financeSisaSaldo" class="text-xl md:text-2xl font-black text-amber-400 truncate">Rp 0</p>
+              <span id="financeSaldoSub" class="text-[10px] text-amber-400/80">Net cashflow studio</span>
+            </div>
+          </div>
+
+          <!-- Widget Rasio Arus Kas & Top 3 Pengeluaran -->
+          <div class="grid grid-cols-1 lg:grid-cols-2 gap-4">
+            <!-- Rasio Arus Kas Bar -->
+            <div class="glass-card p-4 flex flex-col gap-3">
+              <div class="flex items-center justify-between text-xs font-semibold text-slate-300">
+                <span>Rasio Pemasukan vs Pengeluaran</span>
+                <span id="financeMarginRatioText">0% Sehat</span>
+              </div>
+              <div class="w-full h-3 rounded-full bg-slate-800 overflow-hidden flex">
+                <div id="financeRatioInBar" class="h-full bg-emerald-500 transition-all duration-500" style="width: 50%"></div>
+                <div id="financeRatioOutBar" class="h-full bg-rose-500 transition-all duration-500" style="width: 50%"></div>
+              </div>
+              <div class="flex items-center justify-between text-[11px] text-slate-400">
+                <span class="flex items-center gap-1.5"><span class="w-2 h-2 rounded-full bg-emerald-500"></span> Pemasukan</span>
+                <span class="flex items-center gap-1.5"><span class="w-2 h-2 rounded-full bg-rose-500"></span> Pengeluaran</span>
+              </div>
+            </div>
+
+            <!-- Top 3 Pengeluaran Terbesar -->
+            <div class="glass-card p-4 flex flex-col gap-2.5">
+              <span id="financeTopExpensesTitle" class="text-xs font-semibold text-slate-300">3 Pengeluaran Terbesar (Bulan Ini)</span>
+              <div id="financeTopExpensesList" class="flex flex-col gap-2 text-xs">
+                <p class="text-slate-400 text-center py-2">Belum ada data pengeluaran.</p>
+              </div>
+            </div>
+          </div>
+
+          <!-- Filter Toolbar & Pencarian Transaksi Keuangan Studio -->
+          <div class="glass-card p-4 flex flex-col lg:flex-row lg:items-center justify-between gap-3">
+            <div class="flex flex-wrap items-center gap-3">
+              <!-- Filter Periode -->
+              <div class="flex items-center gap-2">
+                <span class="text-xs font-bold text-slate-300 flex items-center gap-1.5">
+                  <i class="fa-solid fa-calendar-days text-emerald-400"></i>
+                  Periode:
+                </span>
+                <select id="financeFilterPeriode" onchange="applyFinanceFilters()" class="text-xs py-1.5 px-3 rounded-xl bg-slate-950 border border-emerald-500/30 text-emerald-300 focus:outline-none focus:border-emerald-500 cursor-pointer">
+                  <option value="all">Semua Periode</option>
+                  <option value="today">Hari Ini</option>
+                  <option value="this_week">Minggu Ini</option>
+                  <option value="this_month" selected>Bulan Ini</option>
+                  <option value="last_month">Bulan Lalu</option>
+                  <option value="this_year">Tahun Ini</option>
+                </select>
+              </div>
+
+              <!-- Filter Tipe -->
+              <div class="flex items-center gap-2">
+                <span class="text-xs font-bold text-slate-300 flex items-center gap-1.5">
+                  <i class="fa-solid fa-arrows-up-down text-emerald-400"></i>
+                  Tipe:
+                </span>
+                <select id="financeFilterTipe" onchange="applyFinanceFilters()" class="text-xs py-1.5 px-3 rounded-xl bg-slate-950 border border-emerald-500/30 text-emerald-300 focus:outline-none focus:border-emerald-500 cursor-pointer">
+                  <option value="all">Semua Tipe</option>
+                  <option value="Pemasukan">🟢 Pemasukan</option>
+                  <option value="Pengeluaran">🔴 Pengeluaran</option>
+                </select>
+              </div>
+            </div>
+
+            <!-- Total Transaksi Terfilter & Search Bar -->
+            <div class="flex items-center gap-2.5">
+              <span id="financeFilterCountBadge" class="text-xs font-bold px-3 py-1 rounded-full bg-emerald-500/10 text-emerald-400 border border-emerald-500/20 whitespace-nowrap">
+                0 Transaksi
+              </span>
+              <div class="relative w-full sm:w-56">
+                <input type="text" id="financeSearchInput" oninput="applyFinanceFilters()" placeholder="Cari transaksi / nota..." class="glass-input w-full pl-8 pr-3 py-1.5 rounded-xl text-xs bg-slate-950/70 text-white placeholder-slate-500 border border-emerald-500/20 focus:border-emerald-500">
+                <i class="fa-solid fa-magnifying-glass absolute left-2.5 top-1/2 -translate-y-1/2 text-slate-500 text-xs"></i>
+              </div>
+            </div>
+          </div>
+
+          <!-- Transaction Table (9 Kolom Bersih Tanpa Angka Prefiks & Foto Barang) -->
+          <div class="glass-card overflow-hidden">
+            <div class="table-scroll-container-finance custom-scrollbar">
+              <table class="w-full text-left text-xs whitespace-nowrap table-sticky-header">
+                <thead class="bg-[#0a1710] border-b border-emerald-500/15 text-slate-400 uppercase tracking-wider font-semibold sticky top-0 z-20">
+                  <tr>
+                    <th class="py-3 px-4">TANGGAL</th>
+                    <th class="py-3 px-4">DESKRIPSI</th>
+                    <th class="py-3 px-4">KATEGORI</th>
+                    <th class="py-3 px-4">TIPE</th>
+                    <th class="py-3 px-4">NOMINAL</th>
+                    <th class="py-3 px-4">BUKTI NOTA</th>
+                    <th class="py-3 px-4">FOTO BARANG</th>
+                    <th class="py-3 px-4">DICATAT OLEH</th>
+                    <th class="py-3 px-4 text-center">AKSI</th>
+                  </tr>
+                </thead>
+                <tbody id="financeTableBody" class="divide-y divide-emerald-500/10">
+                  <tr>
+                    <td colspan="9" class="text-center py-12 text-slate-400">Memuat data keuangan studio...</td>
+                  </tr>
+                </tbody>
+              </table>
+            </div>
+          </div>
+        </section>
+
+        <!-- ===================================================================== -->
+        <!-- 7. VIEW MATERI EDUKASI                                                -->
+        <!-- ===================================================================== -->
+        <section id="view-materi" class="view-panel hidden flex flex-col gap-6">
+          <div class="flex flex-col md:flex-row md:items-center justify-between gap-4">
+            <div>
+              <h2 class="text-xl md:text-2xl font-black text-white tracking-tight flex items-center gap-2.5">
+                <i class="fa-solid fa-graduation-cap text-teal-400"></i>
+                Materi Edukasi & SOP Studio
+              </h2>
+              <p class="text-xs md:text-sm text-slate-400">Pusat pelatihan video tutorial SOP editing, SEO, thumbnail, dan workflow.</p>
+            </div>
+            <div id="materiAdminActions" class="hidden">
+              <button onclick="openMateriFormModal()" class="btn-neon px-4 py-2.5 rounded-xl text-xs flex items-center gap-2">
+                <i class="fa-solid fa-plus"></i>
+                <span>Tambah Materi</span>
+              </button>
+            </div>
+          </div>
+
+          <!-- Category Filter Pills -->
+          <div class="flex flex-wrap gap-2" id="materiFilterContainer">
+            <button onclick="filterMateriByCategory('Semua')" class="materi-pill active px-3.5 py-1.5 rounded-xl text-xs font-semibold bg-emerald-500 text-black">Semua</button>
+            <button onclick="filterMateriByCategory('Editing')" class="materi-pill px-3.5 py-1.5 rounded-xl text-xs font-semibold bg-emerald-500/10 text-emerald-400 border border-emerald-500/20">Editing</button>
+            <button onclick="filterMateriByCategory('SEO & Judul')" class="materi-pill px-3.5 py-1.5 rounded-xl text-xs font-semibold bg-emerald-500/10 text-emerald-400 border border-emerald-500/20">SEO & Judul</button>
+            <button onclick="filterMateriByCategory('Thumbnail')" class="materi-pill px-3.5 py-1.5 rounded-xl text-xs font-semibold bg-emerald-500/10 text-emerald-400 border border-emerald-500/20">Thumbnail</button>
+            <button onclick="filterMateriByCategory('SOP Studio')" class="materi-pill px-3.5 py-1.5 rounded-xl text-xs font-semibold bg-emerald-500/10 text-emerald-400 border border-emerald-500/20">SOP Studio</button>
+          </div>
+
+          <!-- Cards Grid for Video Tutorials -->
+          <div id="materiCardsGrid" class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+            <div class="col-span-full text-center py-12 text-slate-400 text-xs">Memuat daftar materi edukasi...</div>
+          </div>
+        </section>
+
+        <!-- ===================================================================== -->
+        <!-- 8. VIEW DIREKTORI TOOLS EKSTERNAL                                     -->
+        <!-- ===================================================================== -->
+        <section id="view-tools" class="view-panel hidden flex flex-col gap-6">
+          <div class="flex flex-col md:flex-row md:items-center justify-between gap-4">
+            <div>
+              <h2 class="text-xl md:text-2xl font-black text-white tracking-tight flex items-center gap-2.5">
+                <i class="fa-solid fa-wand-magic-sparkles text-purple-400"></i>
+                Direktori Tools Eksternal
+              </h2>
+              <p class="text-xs md:text-sm text-slate-400">Persenjataan alat produksi: In-App AI Canvas, platform online, dan software studio.</p>
+            </div>
+            <div id="toolsAdminActions" class="hidden">
+              <button onclick="openToolFormModal()" class="btn-neon px-4 py-2.5 rounded-xl text-xs flex items-center gap-2">
+                <i class="fa-solid fa-plus"></i>
+                <span>Tambah Tool</span>
+              </button>
+            </div>
+          </div>
+
+          <!-- Filter Pills -->
+          <div class="flex flex-wrap gap-2" id="toolsFilterContainer">
+            <button onclick="filterToolsByCategory('Semua')" class="tool-pill active px-3.5 py-1.5 rounded-xl text-xs font-semibold bg-emerald-500 text-black">Semua</button>
+            <button onclick="filterToolsByCategory('Visual & AI')" class="tool-pill px-3.5 py-1.5 rounded-xl text-xs font-semibold bg-emerald-500/10 text-emerald-400 border border-emerald-500/20">Visual & AI</button>
+            <button onclick="filterToolsByCategory('SEO & Metadata')" class="tool-pill px-3.5 py-1.5 rounded-xl text-xs font-semibold bg-emerald-500/10 text-emerald-400 border border-emerald-500/20">SEO & Metadata</button>
+            <button onclick="filterToolsByCategory('Software Studio')" class="tool-pill px-3.5 py-1.5 rounded-xl text-xs font-semibold bg-emerald-500/10 text-emerald-400 border border-emerald-500/20">Software Studio</button>
+          </div>
+
+          <!-- Tools Cards Grid (3 Launch Modes) -->
+          <div id="toolsCardsGrid" class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+            <div class="col-span-full text-center py-12 text-slate-400 text-xs">Memuat direktori tools...</div>
+          </div>
+        </section>
+
+        <!-- ===================================================================== -->
+        <!-- 9. VIEW DATABASE PENGGUNA & KYC (SUPER ADMIN ONLY)                    -->
+        <!-- ===================================================================== -->
+        <section id="view-users" class="view-panel hidden flex flex-col gap-6">
+          <div class="flex flex-col md:flex-row md:items-center justify-between gap-4">
+            <div>
+              <div class="flex flex-wrap items-center gap-2">
+                <h2 class="text-xl md:text-2xl font-black text-white tracking-tight flex items-center gap-2.5">
+                  <i class="fa-solid fa-users-gear text-emerald-400"></i>
+                  Database Pengguna
+                </h2>
+                <span id="usersScopeBadge" class="text-[10px] font-bold px-2 py-0.5 rounded-full bg-emerald-500/20 text-emerald-400 border border-emerald-500/30">Admin Panel</span>
+                <span id="usersReadOnlyBadge" class="hidden text-[10px] font-bold px-2.5 py-0.5 rounded-full bg-amber-500/20 text-amber-300 border border-amber-500/30">Mode Lihat Saja</span>
+              </div>
+              <p class="text-xs md:text-sm text-slate-400">Persetujuan akun (Approval Gate), profil pengguna, kontrol izin granular, dan status akun.</p>
+            </div>
+          </div>
+
+          <!-- Search Bar & Filter Status -->
+          <div class="glass-card p-4 flex flex-col sm:flex-row items-center justify-between gap-3">
+            <div class="relative w-full md:w-80">
+              <i class="fa-solid fa-magnifying-glass absolute left-3.5 top-1/2 -translate-y-1/2 text-slate-400 text-xs"></i>
+              <input type="text" id="userSearchInput" oninput="debounceUserSearch()" placeholder="Cari nama pengguna / email..." class="glass-input w-full pl-9 pr-4 py-2 rounded-xl text-xs">
+            </div>
+
+            <div class="flex items-center gap-2.5 w-full sm:w-auto">
+              <select id="userFilterStatus" onchange="filterUsersByStatus()" class="glass-input px-3 py-2 rounded-xl text-xs">
+                <option value="">Semua Status Akun</option>
+                <option value="aktif">🟢 Aktif</option>
+                <option value="pending">🟡 Pending Approval</option>
+                <option value="dibekukan">🔴 Dibekukan</option>
+              </select>
+            </div>
+          </div>
+
+          <!-- User Table -->
+          <div class="glass-card overflow-hidden">
+            <div class="table-scroll-container custom-scrollbar">
+              <table class="w-full text-left text-xs whitespace-nowrap table-sticky-header">
+                <thead class="bg-[#0a1710] border-b border-emerald-500/15 text-slate-400 uppercase tracking-wider font-semibold sticky top-0 z-20">
+                  <tr>
+                    <th class="py-3 px-4">Profil & Nama KTP</th>
+                    <th class="py-3 px-4">WhatsApp (1-Klik)</th>
+                    <th class="py-3 px-4">Alamat Domisili</th>
+                    <th class="py-3 px-4">Rekening Bank</th>
+                    <th class="py-3 px-4">Foto KTP</th>
+                    <th class="py-3 px-4">Status Akun</th>
+                    <th class="py-3 px-4 text-center">Kendali Akses</th>
+                    <th class="py-3 px-4 text-center">Aksi</th>
+                  </tr>
+                </thead>
+                <tbody id="userTableBody" class="divide-y divide-emerald-500/10">
+                  <tr>
+                    <td colspan="8" class="text-center py-12 text-slate-400">Memuat database pengguna...</td>
+                  </tr>
+                </tbody>
+              </table>
+            </div>
+          </div>
+        </section>
+
+        <!-- ======================================================================= -->
+        <!-- 8B. VIEW: LOG AKTIVITAS & AUDIT TRAIL (SUPER ADMIN ONLY)                -->
+        <!-- ======================================================================= -->
+        <section id="view-logs" class="view-panel hidden flex flex-col gap-6">
+          <div class="flex flex-col md:flex-row md:items-center justify-between gap-4">
+            <div>
+              <h2 class="text-xl md:text-2xl font-black text-white tracking-tight flex items-center gap-2.5">
+                <i class="fa-solid fa-clock-rotate-left text-sky-400"></i>
+                Log Aktivitas & Audit Studio
+              </h2>
+              <p class="text-xs md:text-sm text-slate-400">Riwayat jejak audit login, perubahan data channel/keuangan, persetujuan user, hingga Tong Sampah.</p>
+            </div>
+            <div class="flex items-center gap-2.5">
+              <button type="button" onclick="loadActivityLogs()" class="px-4 py-2 rounded-xl bg-emerald-500/15 hover:bg-emerald-500/25 border border-emerald-500/30 text-emerald-300 text-xs font-bold flex items-center gap-2">
+                <i class="fa-solid fa-rotate"></i> Refresh Log
+              </button>
+            </div>
+          </div>
+
+          <div class="glass-card p-4 flex flex-col md:flex-row gap-3 items-center justify-between">
+            <div class="relative w-full md:w-96">
+              <i class="fa-solid fa-magnifying-glass absolute left-3.5 top-1/2 -translate-y-1/2 text-slate-400 text-xs"></i>
+              <input type="text" id="logsSearchInput" oninput="debounceLogsSearch()" placeholder="Cari ID log, aksi, pelaku, detail..." class="glass-input w-full pl-9 pr-4 py-2 rounded-xl text-xs">
+            </div>
+            <span id="logsTotalBadge" class="text-xs font-bold px-3 py-1 rounded-full bg-sky-500/15 text-sky-300 border border-sky-500/30">
+              0 Catatan Terbaru
+            </span>
+          </div>
+
+          <div class="glass-card overflow-hidden">
+            <div class="table-scroll-container custom-scrollbar">
+              <table class="w-full text-left text-xs whitespace-nowrap table-sticky-header">
+                <thead class="bg-[#0a1710] border-b border-emerald-500/15 text-slate-400 uppercase tracking-wider font-semibold sticky top-0 z-20">
+                  <tr>
+                    <th class="py-3 px-4">Waktu (WIB)</th>
+                    <th class="py-3 px-4">ID Log</th>
+                    <th class="py-3 px-4">Aksi</th>
+                    <th class="py-3 px-4">Target ID</th>
+                    <th class="py-3 px-4">Detail</th>
+                    <th class="py-3 px-4">Pelaku</th>
+                  </tr>
+                </thead>
+                <tbody id="logsTableBody" class="divide-y divide-emerald-500/10">
+                  <tr>
+                    <td colspan="6" class="text-center py-12 text-slate-400">Memuat riwayat audit...</td>
+                  </tr>
+                </tbody>
+              </table>
+            </div>
+          </div>
+        </section>
+
+        <!-- ======================================================================= -->
+        <!-- 11. VIEW LAPORAN KERJA HARIAN & KONTROL REKAP OTOMATIS 23:00 WIB        -->
+        <!-- ======================================================================= -->
+        <section id="view-laporan" class="view-panel hidden flex flex-col gap-6 min-w-0 w-full">
+          <!-- Header & Kontrol Utama -->
+          <div class="flex flex-col lg:flex-row lg:items-center justify-between gap-4">
+            <div>
+              <div class="flex flex-wrap items-center gap-2.5">
+                <h2 id="laporanPageTitle" class="text-xl md:text-2xl font-black text-white tracking-tight flex items-center gap-2.5">
+                  <i class="fa-solid fa-clipboard-check text-emerald-400"></i>
+                  <span>Laporan Kerja Harian</span>
+                </h2>
+                <span id="laporanReadOnlyBadge" class="hidden text-[10px] font-bold px-2.5 py-0.5 rounded-full bg-amber-500/20 text-amber-300 border border-amber-500/30">Mode Lihat Saja</span>
+              </div>
+              <p id="laporanPageSubtitle" class="text-xs md:text-sm text-slate-400">Aktivitas kerja di aplikasi tercatat otomatis dengan jam WIB, dilengkapi lapor cepat 5 detik.</p>
+            </div>
+
+            <div class="flex flex-wrap items-center gap-2.5">
+              <input type="date" id="laporanDateFilter" onchange="loadWorkReportsData(true)" class="glass-input px-3 py-2 rounded-xl text-xs bg-slate-900/80 text-white">
+              <button type="button" onclick="resetWorkReportDateToday()" class="px-3 py-2 rounded-xl bg-white/5 hover:bg-white/10 text-slate-200 text-xs font-semibold border border-white/10">Hari Ini</button>
+              <button type="button" id="btnAddManualWorkReport" onclick="openQuickWorkLogModal()" class="btn-neon px-4 py-2 rounded-xl text-xs font-bold flex items-center gap-2 shadow-lg">
+                <i class="fa-solid fa-bolt"></i>
+                <span>Catat Kerja Sekarang</span>
+              </button>
+            </div>
+          </div>
+
+          <!-- Panduan Ramah Staf (Otomatis Tersembunyi di Mode Pantau Owner) -->
+          <div id="laporanStaffGuideBanner" class="hidden glass-card p-4 border border-emerald-500/25 flex flex-col md:flex-row md:items-center justify-between gap-3">
+            <div class="space-y-1">
+              <p class="text-xs font-bold text-emerald-300 flex items-center gap-2">
+                <i class="fa-solid fa-circle-info"></i>
+                <span>Tidak Perlu Lapor Dobel &amp; Tanpa Isi Jam Manual</span>
+              </p>
+              <p class="text-[11px] text-slate-300 leading-relaxed">
+                Buat channel, simpan email baru, upload aset Drive, dan selesaikan jadwal di aplikasi <strong>otomatis masuk laporan ini beserta jam WIB</strong>. Untuk pekerjaan di luar aplikasi (mengedit di CapCut/Premiere, mencari bahan, desain Canva), cukup klik tombol <strong>Catat Kerja Sekarang</strong>. Semua laporan dikumpulkan otomatis ke Owner pukul <strong>23:00 WIB</strong>.
+              </p>
+            </div>
+            <div id="laporanStaffTodayBadge" class="shrink-0 px-3.5 py-2 rounded-xl bg-slate-900/80 border border-white/10 text-xs font-bold text-slate-300 text-center">
+              Memuat status...
+            </div>
+          </div>
+
+          <!-- Panel Khusus Owner / Pengawas Tim (Mode Global) -->
+          <div id="laporanOwnerPanel" class="hidden flex flex-col gap-5">
+            <!-- 4 Kartu KPI Kinerja Hari Ini -->
+            <div class="grid grid-cols-2 lg:grid-cols-4 gap-3.5">
+              <div class="glass-card p-4 flex flex-col gap-1.5">
+                <span class="text-xs text-slate-400">Staf Aktif</span>
+                <p id="lapKpiStafAktif" class="text-2xl font-black text-white">0</p>
+                <span class="text-[10px] text-slate-500">Akun staf non-Owner</span>
+              </div>
+              <div class="glass-card p-4 flex flex-col gap-1.5">
+                <span class="text-xs text-emerald-400 font-semibold">Sudah Ada Progres</span>
+                <p id="lapKpiStafKerja" class="text-2xl font-black text-emerald-400">0</p>
+                <span class="text-[10px] text-emerald-500/80">Tercatat hari terpilih</span>
+              </div>
+              <div class="glass-card p-4 flex flex-col gap-1.5 border-rose-500/30">
+                <span class="text-xs text-rose-400 font-semibold">Belum Ada Aktivitas</span>
+                <p id="lapKpiStafKosong" class="text-2xl font-black text-rose-400">0</p>
+                <span class="text-[10px] text-rose-400/80">0 catatan hari terpilih</span>
+              </div>
+              <div class="glass-card p-4 flex flex-col gap-1.5 border-amber-500/30">
+                <span class="text-xs text-amber-400 font-semibold">Total Tugas Tercatat</span>
+                <p id="lapKpiTotalTugas" class="text-2xl font-black text-amber-400">0</p>
+                <span class="text-[10px] text-amber-400/80">Otomatis + Manual</span>
+              </div>
+            </div>
+
+            <!-- Sorotan Staf Belum Kerja Hari Ini -->
+            <div id="laporanMissingStaffBox" class="hidden p-4 rounded-2xl bg-rose-950/25 border border-rose-500/35 flex flex-col gap-2">
+              <div class="flex items-center justify-between flex-wrap gap-2">
+                <span class="text-xs font-bold text-rose-300 flex items-center gap-2">
+                  <i class="fa-solid fa-user-clock"></i> Staf Belum Memiliki Aktivitas Kerja pada Tanggal Terpilih
+                </span>
+              </div>
+              <div id="laporanMissingStaffList" class="flex flex-wrap gap-2"></div>
+            </div>
+
+            <!-- Rekap Progres Per Staf -->
+            <div class="glass-card overflow-hidden">
+              <div class="px-4 py-3 border-b border-emerald-500/15 flex items-center justify-between flex-wrap gap-2 bg-[#07120b]">
+                <div>
+                  <h3 class="text-sm font-bold text-white flex items-center gap-2">
+                    <i class="fa-solid fa-users-viewfinder text-emerald-400"></i> Rekap Kinerja &amp; Rentang Jam Kerja Per Staf
+                  </h3>
+                  <p class="text-[11px] text-slate-400">Klik "Timeline" pada baris staf untuk melihat detail jam per jam</p>
+                </div>
+              </div>
+              <div class="table-scroll-container custom-scrollbar">
+                <table class="w-full text-left text-xs whitespace-nowrap table-sticky-header">
+                  <thead class="bg-[#0a1710] border-b border-emerald-500/15 text-slate-400 uppercase tracking-wider font-semibold sticky top-0 z-20">
+                    <tr>
+                      <th class="py-3 px-4">Nama Staf</th>
+                      <th class="py-3 px-3 text-center">Rentang Jam (WIB)</th>
+                      <th class="py-3 px-2.5 text-center">Email</th>
+                      <th class="py-3 px-2.5 text-center">Channel</th>
+                      <th class="py-3 px-2.5 text-center">Bahan</th>
+                      <th class="py-3 px-2.5 text-center">Edit</th>
+                      <th class="py-3 px-2.5 text-center">Upload</th>
+                      <th class="py-3 px-2.5 text-center">Jadwal</th>
+                      <th class="py-3 px-3 text-center">Total</th>
+                      <th class="py-3 px-4 text-center">Timeline</th>
+                    </tr>
+                  </thead>
+                  <tbody id="laporanStaffSummaryTableBody" class="divide-y divide-emerald-500/10">
+                    <tr><td colspan="10" class="text-center py-8 text-slate-400">Memuat rekap staf...</td></tr>
+                  </tbody>
+                </table>
+              </div>
+            </div>
+
+            <!-- Panel Kontrol Bot Pengumpul Otomatis Jam 23:00 WIB & Arsip -->
+            <div class="glass-card p-4 md:p-5 flex flex-col gap-4 border border-emerald-500/25">
+              <div class="flex flex-col lg:flex-row lg:items-center justify-between gap-3 pb-3 border-b border-white/10">
+                <div>
+                  <h3 class="text-sm font-bold text-white flex items-center gap-2">
+                    <i class="fa-solid fa-robot text-sky-400"></i>
+                    <span>Bot Pengumpul Otomatis Pukul 23:00 WIB ke Owner</span>
+                    <span id="lapTriggerStatusBadge" class="text-[10px] font-bold px-2.5 py-0.5 rounded-full bg-slate-800 text-slate-300 border border-white/10">Mengecek...</span>
+                  </h3>
+                  <p class="text-[11px] text-slate-400 mt-0.5">Mengirim ringkasan kerja harian ke seluruh akun Super Admin/Owner pada rentang pukul 23:00 WIB &amp; menyimpannya ke Arsip Harian.</p>
+                </div>
+                <div id="lapOwnerSuperControls" class="hidden flex flex-wrap items-center gap-2">
+                  <button type="button" id="btnActivate2300Trigger" onclick="activateDaily2300TriggerAction()" class="px-3.5 py-2 rounded-xl bg-sky-500/20 hover:bg-sky-500/30 border border-sky-500/35 text-sky-300 text-xs font-bold flex items-center gap-1.5 cursor-pointer">
+                    <i class="fa-solid fa-clock"></i>
+                    <span>Aktifkan Jadwal 23:00 WIB</span>
+                  </button>
+                  <button type="button" id="btnRunManualRecapNow" onclick="runManualDailyRecapAction()" class="px-3.5 py-2 rounded-xl bg-emerald-500/20 hover:bg-emerald-500/30 border border-emerald-500/35 text-emerald-300 text-xs font-bold flex items-center gap-1.5 cursor-pointer">
+                    <i class="fa-solid fa-paper-plane"></i>
+                    <span>Kumpulkan &amp; Kirim Rekap Sekarang</span>
+                  </button>
+                </div>
+              </div>
+
+              <!-- Pengaturan Email Penerima Tambahan (Khusus Super Admin) -->
+              <div id="lapOwnerEmailConfigRow" class="hidden flex flex-col sm:flex-row sm:items-center gap-2.5 bg-slate-900/50 p-3 rounded-xl border border-white/5">
+                <label class="text-xs font-semibold text-slate-300 shrink-0">Email Penerima Tambahan (Opsional):</label>
+                <input type="text" id="lapExtraOwnerEmails" placeholder="misal: owner.pribadi@gmail.com (pisahkan koma jika lebih dari 1)" class="glass-input flex-1 px-3 py-1.5 rounded-lg text-xs bg-slate-950/70 text-white">
+                <button type="button" id="btnSaveExtraOwnerEmails" onclick="saveOwnerExtraRecapEmailsAction()" class="px-3.5 py-1.5 rounded-lg bg-white/10 hover:bg-white/15 text-white text-xs font-bold shrink-0 cursor-pointer">Simpan Email</button>
+              </div>
+
+              <!-- Arsip Rekap Malam -->
+              <div class="space-y-2">
+                <span class="text-[11px] font-bold uppercase tracking-wider text-slate-400">Arsip Pengumpulan Malam Terbaru</span>
+                <div class="overflow-x-auto custom-scrollbar max-h-48 rounded-xl border border-white/10">
+                  <table class="w-full text-left text-xs whitespace-nowrap">
+                    <thead class="bg-[#0a1710] text-slate-400 text-[10px] uppercase border-b border-white/10">
+                      <tr>
+                        <th class="py-2 px-3">Tanggal</th>
+                        <th class="py-2 px-3">Waktu Kumpul (WIB)</th>
+                        <th class="py-2 px-3 text-center">Staf Melapor / Aktif</th>
+                        <th class="py-2 px-3 text-center">Total Tugas</th>
+                        <th class="py-2 px-3">Status Kirim Email</th>
+                      </tr>
+                    </thead>
+                    <tbody id="lapRecapArchiveBody" class="divide-y divide-white/5">
+                      <tr><td colspan="5" class="text-center py-4 text-slate-500">Belum ada arsip rekap terkumpul.</td></tr>
+                    </tbody>
+                  </table>
+                </div>
+              </div>
+            </div>
+          </div>
+
+          <!-- Ringkasan 6 Kategori Tugas (Grid 2/3/6 Kolom Responsif) -->
+          <div id="laporanCategorySummaryGrid" class="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-6 gap-3"></div>
+
+          <!-- Filter & Timeline Detail Aktivitas Kerja -->
+          <div class="glass-card p-4 flex flex-col sm:flex-row sm:items-center justify-between gap-3">
+            <div class="flex flex-wrap items-center gap-2.5">
+              <select id="laporanFilterStaff" onchange="renderFilteredWorkTimeline()" class="hidden glass-input px-3 py-2 rounded-xl text-xs">
+                <option value="ALL">Semua Staf</option>
+              </select>
+              <select id="laporanFilterKategori" onchange="renderFilteredWorkTimeline()" class="glass-input px-3 py-2 rounded-xl text-xs">
+                <option value="ALL">Semua Kategori Tugas</option>
+                <option value="Buat Email">Buat Email</option>
+                <option value="Buat Channel">Buat Channel</option>
+                <option value="Cari / Buat Bahan">Cari / Buat Bahan</option>
+                <option value="Mengedit">Mengedit</option>
+                <option value="Upload">Upload</option>
+                <option value="Menjadwalkan">Menjadwalkan</option>
+              </select>
+            </div>
+            <span id="laporanTimelineCountBadge" class="text-xs font-bold px-3 py-1 rounded-full bg-emerald-500/15 text-emerald-300 border border-emerald-500/30">
+              0 Catatan Kerja
+            </span>
+          </div>
+
+          <div class="glass-card overflow-hidden">
+            <div class="table-scroll-container custom-scrollbar">
+              <table class="w-full text-left text-xs whitespace-nowrap table-sticky-header">
+                <thead class="bg-[#0a1710] border-b border-emerald-500/15 text-slate-400 uppercase tracking-wider font-semibold sticky top-0 z-20">
+                  <tr>
+                    <th class="py-3 px-4">Waktu (WIB)</th>
+                    <th class="py-3 px-4">Pelaku</th>
+                    <th class="py-3 px-4">Kategori Tugas</th>
+                    <th class="py-3 px-4">Channel Terkait</th>
+                    <th class="py-3 px-4">Uraian Hasil Kerja</th>
+                    <th class="py-3 px-4 text-center">Sumber</th>
+                    <th class="py-3 px-4 text-center">Aksi</th>
+                  </tr>
+                </thead>
+                <tbody id="laporanTimelineTableBody" class="divide-y divide-emerald-500/10">
+                  <tr>
+                    <td colspan="7" class="text-center py-10 text-slate-400">Memuat catatan aktivitas kerja...</td>
+                  </tr>
+                </tbody>
+              </table>
+            </div>
+          </div>
+        </section>
+
+      </div>
+    </main>
+
+    <!-- ========================================================================= -->
+    <!-- 📱 FLOATING MOBILE BOTTOM DOCK                                            -->
+    <!-- ========================================================================= -->
+    <div class="md:hidden fixed bottom-3 inset-x-3 z-30 mobile-bottom-dock px-3 py-2 flex items-center justify-around">
+      <button id="mobileNavDashboard" onclick="switchView('dashboard')" class="flex flex-col items-center gap-1 text-slate-400 hover:text-emerald-400">
+        <i class="fa-solid fa-chart-pie text-base"></i>
+        <span class="text-[10px] font-medium">Dashboard</span>
+      </button>
+
+      <button id="mobileNavJadwal" onclick="switchView('jadwal')" class="flex flex-col items-center gap-1 text-slate-400 hover:text-emerald-400">
+        <i class="fa-solid fa-calendar-check text-base"></i>
+        <span class="text-[10px] font-medium">Jadwal</span>
+      </button>
+
+      <!-- Center Floating Quick Action Button -->
+      <button id="mobileCenterAddChannel" onclick="openChannelFormModal()" class="mobile-center-elevated-btn flex items-center justify-center text-black font-black shadow-lg shadow-emerald-500/40">
+        <i class="fa-solid fa-plus text-lg"></i>
+      </button>
+
+      <button id="mobileNavChannel" onclick="switchView('database')" class="flex flex-col items-center gap-1 text-slate-400 hover:text-emerald-400">
+        <i class="fa-brands fa-youtube text-base"></i>
+        <span class="text-[10px] font-medium">Channel</span>
+      </button>
+
+      <button onclick="openMobileSidebarDrawer()" class="flex flex-col items-center gap-1 text-slate-400 hover:text-emerald-400">
+        <i class="fa-solid fa-bars text-base"></i>
+        <span class="text-[10px] font-medium">Menu</span>
+      </button>
+    </div>
+
+  </div> <!-- End of #appAuthWrapper -->
+
+  <!-- Include Modals & Core Client JavaScript Controller -->
+  <?!= include('modals'); ?>
+  <?!= include('js'); ?>
+
+</body>
+</html>

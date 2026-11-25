@@ -1,0 +1,227 @@
+<style>
+/* ================================================================================
+   DOGO STUDIO V1 - LUXURY ORGANIC DARK EMERALD DESIGN SYSTEM
+   Base Palette: #060d09 & #07120b | Neon Accent: #00e676 / #34d399
+   ================================================================================ */
+
+:root {
+  --bg-main: #060d09;
+  --bg-card: #07120b;
+  --bg-card-subtle: #0a1710;
+  --border-glass: rgba(0, 230, 118, 0.15);
+  --border-glass-hover: rgba(0, 230, 118, 0.35);
+  --neon-emerald: #00e676;
+  --neon-glow: 0 0 15px rgba(0, 230, 118, 0.35);
+}
+
+body {
+  background-color: var(--bg-main);
+  color: #f1f5f9;
+  font-family: 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+  overflow-x: hidden;
+}
+
+/* Glass Card Component */
+.glass-card {
+  background: rgba(7, 18, 11, 0.88);
+  backdrop-filter: blur(16px);
+  -webkit-backdrop-filter: blur(16px);
+  border: 1px solid var(--border-glass);
+  border-radius: 1.25rem;
+  box-shadow: 0 10px 30px -5px rgba(0, 0, 0, 0.6);
+  transition: border-color 0.25s ease, box-shadow 0.25s ease;
+}
+
+.glass-card:hover {
+  border-color: var(--border-glass-hover);
+}
+
+/* Glass Input & Select */
+.glass-input {
+  background: rgba(10, 23, 16, 0.85);
+  border: 1px solid rgba(255, 255, 255, 0.08);
+  color: #ffffff;
+  transition: all 0.2s ease;
+}
+
+.glass-input:focus {
+  outline: none;
+  border-color: var(--neon-emerald);
+  box-shadow: 0 0 10px rgba(0, 230, 118, 0.25);
+}
+
+/* Neon Action Button */
+.btn-neon {
+  background: linear-gradient(135deg, #00e676 0%, #059669 100%);
+  color: #022c22;
+  font-weight: 700;
+  border: none;
+  transition: all 0.25s cubic-bezier(0.4, 0, 0.2, 1);
+}
+
+.btn-neon:hover {
+  box-shadow: 0 0 18px rgba(0, 230, 118, 0.5);
+  transform: translateY(-1px);
+  color: #000000;
+}
+
+.btn-neon:active {
+  transform: translateY(0);
+}
+
+/* Badges */
+.badge-neon {
+  background: rgba(0, 230, 118, 0.15);
+  color: #00e676;
+  border: 1px solid rgba(0, 230, 118, 0.35);
+}
+
+.chip-btn {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.25rem;
+  padding: 0.2rem 0.5rem;
+  border-radius: 0.5rem;
+  font-size: 0.68rem;
+  font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace;
+  background-color: rgba(255, 255, 255, 0.05);
+  border: 1px solid rgba(255, 255, 255, 0.1);
+  color: #a7f3d0;
+  cursor: pointer;
+  transition: all 0.2s ease;
+}
+
+.chip-btn:hover {
+  background-color: rgba(0, 230, 118, 0.15);
+  border-color: rgba(0, 230, 118, 0.4);
+  color: #ffffff;
+  transform: translateY(-1px);
+}
+
+/* Custom Scrollbar */
+.custom-scrollbar::-webkit-scrollbar {
+  width: 6px;
+  height: 6px;
+}
+.custom-scrollbar::-webkit-scrollbar-track {
+  background: rgba(0, 0, 0, 0.2);
+}
+.custom-scrollbar::-webkit-scrollbar-thumb {
+  background: rgba(0, 230, 118, 0.2);
+  border-radius: 9999px;
+}
+.custom-scrollbar::-webkit-scrollbar-thumb:hover {
+  background: rgba(0, 230, 118, 0.4);
+}
+
+/* App Modal Container */
+.app-modal {
+  position: fixed;
+  inset: 0;
+  z-index: 50;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 1rem;
+  background: rgba(0, 0, 0, 0.75);
+  backdrop-filter: blur(8px);
+  -webkit-backdrop-filter: blur(8px);
+}
+
+.app-modal.hidden {
+  display: none !important;
+}
+
+/* Mobile Bottom Dock (Floating Bar) */
+.mobile-bottom-dock {
+  background: rgba(7, 18, 11, 0.92);
+  backdrop-filter: blur(20px);
+  -webkit-backdrop-filter: blur(20px);
+  border: 1px solid rgba(0, 230, 118, 0.25);
+  border-radius: 1.5rem;
+  box-shadow: 0 10px 30px rgba(0, 0, 0, 0.8), 0 0 15px rgba(0, 230, 118, 0.15);
+}
+
+.mobile-center-elevated-btn {
+  width: 3.25rem;
+  height: 3.25rem;
+  margin-top: -1.5rem;
+  border-radius: 9999px;
+  background: linear-gradient(135deg, #00e676 0%, #059669 100%);
+  color: #022c22;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  box-shadow: 0 8px 20px rgba(0, 230, 118, 0.45);
+  transition: all 0.2s ease;
+}
+
+.mobile-center-elevated-btn:active {
+  transform: scale(0.92);
+}
+
+/* Sidebar Navigation Items */
+.sidebar-link {
+  transition: all 0.2s ease;
+}
+
+.sidebar-link.active {
+  background: rgba(0, 230, 118, 0.12);
+  border-left: 3px solid #00e676;
+  color: #ffffff;
+}
+
+.sidebar-link.active i {
+  color: #00e676;
+}
+
+/* Page View Visibility */
+.page-view.hidden {
+  display: none !important;
+}
+
+/* ================================================================================
+   STICKY FROZEN TABLE HEADER & DEDICATED SCROLL CONTAINER (REV-10.15)
+   ================================================================================ */
+.table-scroll-container {
+  overflow-x: auto;
+  overflow-y: auto;
+  max-height: calc(100vh - 295px);
+  min-height: 280px;
+  position: relative;
+}
+
+@media (max-height: 800px) {
+  .table-scroll-container {
+    max-height: calc(100vh - 250px);
+  }
+}
+
+.table-scroll-container-finance {
+  overflow-x: auto;
+  overflow-y: auto;
+  max-height: calc(100vh - 220px);
+  min-height: 380px;
+  position: relative;
+}
+
+.table-sticky-header {
+  border-collapse: separate !important;
+  border-spacing: 0 !important;
+}
+
+.table-sticky-header thead {
+  position: sticky !important;
+  top: 0 !important;
+  z-index: 20 !important;
+}
+
+.table-sticky-header thead th {
+  position: sticky !important;
+  top: 0 !important;
+  z-index: 20 !important;
+  background-color: #0a1710 !important;
+  border-bottom: 1px solid rgba(0, 230, 118, 0.2) !important;
+  box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.5), 0 2px 4px -2px rgba(0, 0, 0, 0.5) !important;
+}
+</style>
