@@ -61,9 +61,71 @@ var WORK_REPORT_CATEGORIES = [
  * 🌐 WEB APP ROUTING
  * ================================================================================
  */
+var PUBLIC_API_WHITELIST_ = {
+  ping: true,
+  loginUser: true,
+  loginWithGoogle: true,
+  logoutUser: true,
+  syncUserSession: true,
+  requestRegistrationOtp: true,
+  confirmRegistrationWithOtp: true,
+  requestPasswordResetOtp: true,
+  confirmPasswordResetWithOtp: true,
+  requestPasswordReset: true,
+  getUsersData: true,
+  approveUser: true,
+  unfreezeUser: true,
+  updateUserPermissions: true,
+  deleteUser: true,
+  updateUserProfile: true,
+  updateMyProfileAndPassword: true,
+  getActivityLogs: true,
+  getDashboardSummary: true,
+  quickUpdateUpload: true,
+  getCalendarSchedule: true,
+  getMasterDropdowns: true,
+  getEmailOptions: true,
+  getChannelsData: true,
+  saveChannel: true,
+  uploadChannelAsset: true,
+  uploadStudioFile: true,
+  getProtectedDriveImage: true,
+  deleteChannel: true,
+  getEmailsData: true,
+  getEmailDetailByAddressOrId: true,
+  saveEmail: true,
+  deleteEmail: true,
+  getAdSenseData: true,
+  saveAdSense: true,
+  deleteAdSense: true,
+  getFinanceData: true,
+  saveFinanceTransaction: true,
+  deleteFinance: true,
+  addFinanceCategory: true,
+  getMateriList: true,
+  saveMateriItem: true,
+  deleteMateriItem: true,
+  getToolsList: true,
+  saveToolItem: true,
+  deleteToolItem: true,
+  getTrashBinData: true,
+  restoreTrashItem: true,
+  permanentDeleteTrashItem: true,
+  submitManualWorkLog: true,
+  getWorkReportsData: true,
+  deleteWorkLogItem: true,
+  setupDailyWorkRecapTrigger: true,
+  saveOwnerRecapConfig: true,
+  triggerManualDailyRecapNow: true
+};
+
 function doGet(e) {
-  if (e && e.parameter && e.parameter.action) {
-    return doPost(e);
+  if (e && e.parameter && e.parameter.action === 'ping') {
+    return ContentService.createTextOutput(JSON.stringify({
+      success: true,
+      message: 'DoGo Studio API Gateway Online',
+      timestamp: new Date().toISOString()
+    })).setMimeType(ContentService.MimeType.JSON);
   }
   return HtmlService.createTemplateFromFile('index')
     .evaluate()
@@ -80,12 +142,15 @@ function doPost(e) {
       try {
         request = JSON.parse(rawData);
       } catch (err) {
-        request = {};
+        return ContentService.createTextOutput(JSON.stringify({
+          success: false,
+          message: 'Payload JSON tidak valid.'
+        })).setMimeType(ContentService.MimeType.JSON);
       }
     }
-    var action = request.action || (e && e.parameter && e.parameter.action) || '';
+    var action = (request && typeof request.action === 'string') ? request.action.trim() : '';
     var args = Array.isArray(request.args) ? request.args : (request.payload !== undefined ? [request.payload] : []);
-    
+
     if (action === 'ping') {
       return ContentService.createTextOutput(JSON.stringify({
         success: true,
@@ -93,15 +158,15 @@ function doPost(e) {
         timestamp: new Date().toISOString()
       })).setMimeType(ContentService.MimeType.JSON);
     }
-    
-    // Whitelist keamanan: Hanya fungsi publik yang tidak berakhiran underscore '_' dan bukan fungsi sistem routing
-    if (!action || typeof action !== 'string' || action.endsWith('_') || action === 'doGet' || action === 'doPost' || action === 'include') {
+
+    // Strict Explicit API Whitelist (Blokir refleksi ke helper, setupDatabase, & prototype keys)
+    if (!action || !Object.prototype.hasOwnProperty.call(PUBLIC_API_WHITELIST_, action) || PUBLIC_API_WHITELIST_[action] !== true || action.endsWith('_')) {
       return ContentService.createTextOutput(JSON.stringify({
         success: false,
-        message: 'Aksi API tidak valid atau privat: ' + action
+        message: 'Aksi API tidak diizinkan: ' + (action || 'kosong')
       })).setMimeType(ContentService.MimeType.JSON);
     }
-    
+
     var fn = this[action];
     if (typeof fn !== 'function') {
       return ContentService.createTextOutput(JSON.stringify({
@@ -109,7 +174,7 @@ function doPost(e) {
         message: 'Fungsi backend tidak ditemukan: ' + action
       })).setMimeType(ContentService.MimeType.JSON);
     }
-    
+
     var result = fn.apply(this, args);
     return ContentService.createTextOutput(JSON.stringify(result !== undefined ? result : { success: true }))
       .setMimeType(ContentService.MimeType.JSON);
@@ -956,7 +1021,7 @@ function loginUser(credentials) {
 function decodeGoogleJwtPayload_(jwtString) {
   if (!jwtString || typeof jwtString !== 'string') return null;
   var parts = jwtString.split('.');
-  if (parts.length < 2) return null;
+  if (parts.length !== 3 || !parts[0] || !parts[1] || !parts[2]) return null;
   try {
     var b64 = parts[1].replace(/-/g, '+').replace(/_/g, '/');
     while (b64.length % 4) b64 += '=';
@@ -964,6 +1029,54 @@ function decodeGoogleJwtPayload_(jwtString) {
     return JSON.parse(decoded);
   } catch (e) {
     return null;
+  }
+}
+
+function verifyGoogleIdToken_(credential, expectedClientId) {
+  var preClaims = decodeGoogleJwtPayload_(credential);
+  if (!preClaims || !preClaims.email) {
+    return { ok: false, message: 'Token Google tidak valid atau format tidak sesuai.' };
+  }
+  var preExp = parseInt(preClaims.exp || '0', 10);
+  if (!preExp || (preExp * 1000) <= Date.now()) {
+    return { ok: false, message: 'Token Google sudah kedaluwarsa. Silakan klik masuk ulang.' };
+  }
+  if (preClaims.aud !== expectedClientId) {
+    return { ok: false, message: 'Client ID token Google tidak sesuai dengan DoGo Studio.' };
+  }
+
+  // Wajib verifikasi kriptografi resmi langsung ke Google OAuth2 TokenInfo endpoint
+  if (typeof UrlFetchApp === 'undefined' || !UrlFetchApp.fetch) {
+    return { ok: false, message: 'Layanan verifikasi token Google (UrlFetchApp) tidak tersedia di server.' };
+  }
+
+  try {
+    var resp = UrlFetchApp.fetch('https://oauth2.googleapis.com/tokeninfo?id_token=' + encodeURIComponent(credential), {
+      method: 'get',
+      muteHttpExceptions: true
+    });
+    if (resp.getResponseCode() !== 200) {
+      return { ok: false, message: 'Verifikasi tanda tangan token ditolak oleh server Google.' };
+    }
+    var verifiedClaims = JSON.parse(resp.getContentText() || '{}');
+    var iss = (verifiedClaims.iss || '').toString().trim();
+    if (iss && iss !== 'accounts.google.com' && iss !== 'https://accounts.google.com') {
+      return { ok: false, message: 'Penerbit token Google (issuer) tidak sah.' };
+    }
+    if (verifiedClaims.aud !== expectedClientId) {
+      return { ok: false, message: 'Audience token tidak cocok dengan aplikasi DoGo Studio.' };
+    }
+    var vExp = parseInt(verifiedClaims.exp || '0', 10);
+    if (!vExp || (vExp * 1000) <= Date.now()) {
+      return { ok: false, message: 'Token Google sudah kedaluwarsa.' };
+    }
+    var isVerified = (verifiedClaims.email_verified === true || verifiedClaims.email_verified === 'true');
+    if (!isVerified || !verifiedClaims.email) {
+      return { ok: false, message: 'Email Google Anda belum terverifikasi oleh Google.' };
+    }
+    return { ok: true, claims: verifiedClaims };
+  } catch (err) {
+    return { ok: false, message: 'Gagal menghubungi server verifikasi Google: ' + err.message };
   }
 }
 
@@ -977,109 +1090,119 @@ function loginWithGoogle(payload) {
       return { success: false, message: 'Kredensial token Google tidak ditemukan.' };
     }
 
-    var tokenData = decodeGoogleJwtPayload_(credential);
-    if (!tokenData || !tokenData.email) {
-      return { success: false, message: 'Token Google tidak valid atau format tidak sesuai.' };
+    var expectedClientId = '224443808801-cc7qfebil8jipnt4p1806vau8rabv302.apps.googleusercontent.com';
+    var checkRes = verifyGoogleIdToken_(credential, expectedClientId);
+    if (!checkRes.ok) {
+      return { success: false, message: checkRes.message };
     }
+    var tokenData = checkRes.claims;
 
     var cleanEmail = (tokenData.email || '').toString().trim().toLowerCase();
     var googleName = (tokenData.name || cleanEmail.split('@')[0]).toString().trim();
     var googlePicture = (tokenData.picture || '').toString().trim();
-    var isVerified = (tokenData.email_verified === true || tokenData.email_verified === 'true');
-
-    if (!isVerified) {
-      return { success: false, message: 'Email Google Anda belum terverifikasi oleh Google.' };
-    }
-
-    var expectedClientId = '224443808801-cc7qfebil8jipnt4p1806vau8rabv302.apps.googleusercontent.com';
-    if (tokenData.aud && tokenData.aud !== expectedClientId) {
-      return { success: false, message: 'Client ID token Google tidak sesuai dengan DoGo Studio.' };
-    }
 
     var sheet = getUserSheet_();
     var lastRow = sheet.getLastRow();
     var nowStr = Utilities.formatDate(new Date(), 'Asia/Jakarta', 'dd/MM/yyyy HH:mm:ss');
+    var matchedDeletedNonOwner = false;
 
     if (lastRow > 1) {
       var data = sheet.getRange(2, 1, lastRow - 1, 19).getDisplayValues();
       for (var i = 0; i < data.length; i++) {
         var r = data[i];
-        var statusHapus = (r[18] || 'Active').toString().trim().toLowerCase();
-        if (statusHapus === 'deleted') continue;
-
         var emailInSheet = (r[5] || '').toString().trim().toLowerCase();
-        if (emailInSheet === cleanEmail) {
-          var role = (r[7] || 'Pengguna').toString().trim().toUpperCase();
-          var statusAkun = (r[14] || 'Aktif').toString().trim();
-          var stNorm = statusAkun.toLowerCase();
+        if (emailInSheet !== cleanEmail) continue;
 
-          // 1. Cek Akun Dibekukan
-          if (stNorm === 'dibekukan' || stNorm === 'frozen' || stNorm === 'locked') {
-            return {
-              success: false,
-              message: 'Akun Anda telah DIBEKUKAN oleh sistem. Hubungi Super Admin untuk membuka blokir.'
-            };
+        var statusHapus = (r[18] || 'Active').toString().trim().toLowerCase();
+        if (statusHapus === 'deleted') {
+          if (cleanEmail !== 'markazyoutuber.official@gmail.com') {
+            matchedDeletedNonOwner = true;
           }
+          continue;
+        }
 
-          // 2. Cek Akun Pending (Kecuali Super Admin / Owner)
-          var isOwner = (cleanEmail === 'markazyoutuber.official@gmail.com') || (role.indexOf('ADMIN') !== -1) || (role.indexOf('OWNER') !== -1);
-          if (!isOwner && (stNorm === 'pending' || stNorm === 'pending approval')) {
-            return {
-              success: false,
-              message: 'Akun Anda masih berstatus PENDING APPROVAL. Silakan hubungi Super Admin untuk persetujuan akun.'
-            };
-          }
+        var role = (r[7] || 'Pengguna').toString().trim().toUpperCase();
+        var statusAkun = (r[14] || 'Aktif').toString().trim();
+        var stNorm = statusAkun.toLowerCase();
 
-          // Reset fail count, perbarui last login & foto profil jika kosong
-          sheet.getRange(i + 2, 16).setValue(0);
-          sheet.getRange(i + 2, 18).setValue(nowStr);
-          if (googlePicture && !r[8]) {
-            sheet.getRange(i + 2, 9).setValue(googlePicture);
-          }
-          SpreadsheetApp.flush();
-
-          var cleanRole = role.replace(/[\s_]/g, '');
-          var normalizedRole = (cleanRole === 'SUPERADMIN' || cleanRole === 'OWNER' || cleanRole === 'SUPER' || cleanRole === 'ADMIN') ? 'SUPER_ADMIN' : 'TIM';
-          var izinJson = (r[16] || '{}').toString().trim();
-          var userPerms = normalizeUserPermsObj_(izinJson);
-          var sessionToken = createServerSession_(cleanEmail, r[0]);
-
-          var sessionUser = {
-            token: sessionToken,
-            id: r[0],
-            userId: r[0],
-            nama: r[1] || googleName,
-            nik: (r[2] || '').toString().trim(),
-            noWa: r[3] || '',
-            alamat: r[4] || '',
-            email: cleanEmail,
-            role: normalizedRole,
-            displayRole: r[7] || 'Pengguna',
-            fotoProfil: r[8] || googlePicture,
-            fotoKtpUrl: r[9] || '',
-            namaBank: r[10] || '',
-            bank: r[10] || '',
-            noRekening: r[11] || '',
-            atasNama: r[12] || '',
-            status: statusAkun,
-            izinAkses: userPerms,
-            authProvider: 'google'
-          };
-
-          logActivity_('Login Google Berhasil', cleanEmail, 'Masuk via Google Sign-In (' + normalizedRole + ')', sessionUser);
-
+        // 1. Cek Akun Dibekukan
+        if (stNorm === 'dibekukan' || stNorm === 'frozen' || stNorm === 'locked') {
           return {
-            success: true,
-            user: sessionUser,
-            userSession: sessionUser,
-            permissions: userPerms
+            success: false,
+            message: 'Akun Anda telah DIBEKUKAN oleh sistem. Hubungi Super Admin untuk membuka blokir.'
           };
         }
+
+        // 2. Cek Akun Pending (Kecuali Owner utama atau Super Admin)
+        var isOwner = (cleanEmail === 'markazyoutuber.official@gmail.com') || (role.indexOf('ADMIN') !== -1) || (role.indexOf('OWNER') !== -1);
+        if (!isOwner && (stNorm === 'pending' || stNorm === 'pending approval')) {
+          return {
+            success: false,
+            pendingApproval: true,
+            message: 'Akun Anda masih berstatus PENDING APPROVAL. Silakan hubungi Super Admin untuk persetujuan akun.'
+          };
+        }
+        if (isOwner && (stNorm === 'pending' || stNorm === 'pending approval')) {
+          statusAkun = 'Aktif';
+          sheet.getRange(i + 2, 15).setValue('Aktif');
+        }
+
+        // Reset fail count, perbarui last login & foto profil jika kosong
+        sheet.getRange(i + 2, 16).setValue(0);
+        sheet.getRange(i + 2, 18).setValue(nowStr);
+        if (googlePicture && !r[8]) {
+          sheet.getRange(i + 2, 9).setValue(googlePicture);
+        }
+        SpreadsheetApp.flush();
+
+        var cleanRole = role.replace(/[\s_]/g, '');
+        var normalizedRole = (cleanRole === 'SUPERADMIN' || cleanRole === 'OWNER' || cleanRole === 'SUPER' || cleanRole === 'ADMIN') ? 'SUPER_ADMIN' : 'TIM';
+        var izinJson = (r[16] || '{}').toString().trim();
+        var userPerms = normalizeUserPermsObj_(izinJson);
+        var sessionToken = createServerSession_(cleanEmail, r[0]);
+
+        var sessionUser = {
+          token: sessionToken,
+          id: r[0],
+          userId: r[0],
+          nama: r[1] || googleName,
+          nik: (r[2] || '').toString().trim(),
+          noWa: r[3] || '',
+          alamat: r[4] || '',
+          email: cleanEmail,
+          role: normalizedRole,
+          displayRole: r[7] || 'Pengguna',
+          fotoProfil: r[8] || googlePicture,
+          fotoKtpUrl: r[9] || '',
+          namaBank: r[10] || '',
+          bank: r[10] || '',
+          noRekening: r[11] || '',
+          atasNama: r[12] || '',
+          status: statusAkun,
+          izinAkses: userPerms,
+          authProvider: 'google'
+        };
+
+        logActivity_('Login Google Berhasil', cleanEmail, 'Masuk via Google Sign-In (' + normalizedRole + ')', sessionUser);
+
+        return {
+          success: true,
+          user: sessionUser,
+          userSession: sessionUser,
+          permissions: userPerms
+        };
       }
     }
 
+    if (matchedDeletedNonOwner) {
+      return {
+        success: false,
+        message: 'Akun dengan email ini sedang dinonaktifkan / berada di Tong Sampah. Hubungi Super Admin.'
+      };
+    }
+
     // Akun belum terdaftar -> Registrasi Baru Otomatis via Google
-    var newUserId = generateId_('USR');
+    var newUserId = generateId_('USR', sheet);
     var isFirstOwner = (cleanEmail === 'markazyoutuber.official@gmail.com') || (lastRow <= 1);
     var assignedRole = isFirstOwner ? 'Super Admin' : 'Pengguna';
     var assignedStatus = isFirstOwner ? 'Aktif' : 'Pending Approval';
@@ -3279,9 +3402,15 @@ function uploadStudioFile(payload, userSession) {
           return { success: false, message: 'Akses ditolak: Anda tidak memiliki izin mengunggah dokumen KTP AdSense.' };
         }
       } else {
-        var isSelfUserKtp = (moduleName === 'user' && (payload.targetEmail === userSession.email || !payload.targetEmail || payload.targetEmail === '' || payload.targetName === userSession.nama));
-        if (!isSuperAdmin(userSession) && !isSelfUserKtp && !canPerformModuleAction(userSession, 'users', 'edit')) {
+        var canManageOthersKtp = isSuperAdmin(userSession) || canPerformModuleAction(userSession, 'users', 'edit');
+        var tEmail = (payload.targetEmail || '').toString().trim().toLowerCase();
+        var isSelfUserKtp = (moduleName === 'user' && (!tEmail || tEmail === (userSession.email || '').toLowerCase()));
+        if (!canManageOthersKtp && !isSelfUserKtp) {
           return { success: false, message: 'Akses ditolak: Anda tidak berhak mengunggah dokumen KTP pengguna lain.' };
+        }
+        // Kunci nama folder target ke identitas sesi sendiri jika bukan pengelola Admin Panel
+        if (!canManageOthersKtp) {
+          payload.targetName = userSession.nama || userSession.email || 'Pengguna';
         }
       }
     } else if (moduleName === 'finance' || moduleName === 'keuangan') {
@@ -4353,18 +4482,20 @@ function deleteFinance(id, userSession, rowIndex) {
     if (targetId) {
       var ids = sheet.getRange(2, 1, lastRow - 1, 1).getDisplayValues();
       for (var i = 0; i < ids.length; i++) {
-        if (ids[i][0] === targetId) {
+        if ((ids[i][0] || '').toString().trim() === targetId) {
           foundRow = i + 2;
           break;
         }
       }
-    }
-
-    // Fallback presisi: jika ID belum tercatat atau kosong, gunakan rowIndex
-    if (foundRow === -1 && rowIndex) {
+    } else if (rowIndex) {
+      // Fallback presisi hanya bila baris legacy belum punya ID
       var rIdx = parseInt(rowIndex, 10);
       if (!isNaN(rIdx) && rIdx >= 2 && rIdx <= lastRow) {
-        foundRow = rIdx;
+        var existingRowId = (sheet.getRange(rIdx, 1).getDisplayValue() || '').toString().trim();
+        var existingStatus = (sheet.getRange(rIdx, 11).getDisplayValue() || '').toString().trim().toLowerCase();
+        if (!existingRowId && existingStatus !== 'deleted') {
+          foundRow = rIdx;
+        }
       }
     }
 
@@ -4811,6 +4942,46 @@ function getTrashBinData(userSession) {
       }
     } catch (e) {}
 
+    // 7. Users / Pengguna (Khusus Super Admin atau pengelola izin users)
+    if (isSuperAdmin(userSession) || canAccessModule(userSession, 'users')) {
+      try {
+        var usrSheet = getUserSheet_();
+        var usrLast = usrSheet.getLastRow();
+        if (usrLast > 1) {
+          var usrData = usrSheet.getRange(2, 1, usrLast - 1, 19).getDisplayValues();
+          for (var i = 0; i < usrData.length; i++) {
+            if ((usrData[i][18] || '').toLowerCase() === 'deleted') {
+              trash.push({
+                id: usrData[i][0] || usrData[i][5],
+                module: 'Pengguna',
+                name: usrData[i][1] || usrData[i][5] || '-',
+                details: 'Email: ' + (usrData[i][5] || '-') + ' | Role: ' + (usrData[i][7] || 'Pengguna')
+              });
+            }
+          }
+        }
+      } catch (e) {}
+    }
+
+    // 8. Laporan Kerja Harian
+    try {
+      var lapSheet = getLaporanKerjaSheet_();
+      var lapLast = lapSheet.getLastRow();
+      if (lapLast > 1) {
+        var lapData = lapSheet.getRange(2, 1, lapLast - 1, 12).getDisplayValues();
+        for (var i = 0; i < lapData.length; i++) {
+          if ((lapData[i][11] || '').toLowerCase() === 'deleted') {
+            trash.push({
+              id: lapData[i][0],
+              module: 'Laporan',
+              name: (lapData[i][6] || 'Tugas') + ' — ' + (lapData[i][4] || '-'),
+              details: (lapData[i][1] || '') + ' ' + (lapData[i][2] || '') + ' | ' + (lapData[i][8] || '-').slice(0, 60)
+            });
+          }
+        }
+      }
+    } catch (e) {}
+
     return { success: true, data: trash, items: trash };
   } catch (err) {
     return { success: false, message: 'Gagal memuat tong sampah: ' + err.message };
@@ -4832,14 +5003,28 @@ function restoreTrashItem(module, id, userSession) {
     else if (mod === 'keuangan' || mod === 'finance') { sheet = getFinanceSheet_(); statusCol = 11; }
     else if (mod === 'materi') { sheet = getMateriSheet_(); statusCol = 7; }
     else if (mod === 'tool' || mod === 'tools') { sheet = getToolsSheet_(); statusCol = 8; }
+    else if (mod === 'pengguna' || mod === 'user' || mod === 'users') {
+      if (!isSuperAdmin(userSession) && !canPerformModuleAction(userSession, 'users', 'edit')) {
+        return { success: false, message: 'Akses ditolak: Anda tidak berhak memulihkan akun pengguna.' };
+      }
+      sheet = getUserSheet_(); statusCol = 19;
+    }
+    else if (mod === 'laporan' || mod === 'worklog') { sheet = getLaporanKerjaSheet_(); statusCol = 12; }
 
     if (!sheet) return { success: false, message: 'Modul tidak dikenali' };
 
     var lastRow = sheet.getLastRow();
     if (lastRow <= 1) return { success: false, message: 'Data tidak ditemukan' };
     var ids = sheet.getRange(2, 1, lastRow - 1, 1).getDisplayValues();
+    var targetMatch = (id || '').toString().trim();
     for (var i = 0; i < ids.length; i++) {
-      if (ids[i][0] === id) {
+      if ((ids[i][0] || '').toString().trim() === targetMatch) {
+        if (mod === 'pengguna' || mod === 'user' || mod === 'users') {
+          var roleVal = (sheet.getRange(i + 2, 8).getDisplayValue() || '').toString().toUpperCase().replace(/[\s_]/g, '');
+          if (!isSuperAdmin(userSession) && (roleVal === 'SUPERADMIN' || roleVal === 'OWNER' || roleVal === 'SUPER' || roleVal === 'ADMIN')) {
+            return { success: false, message: 'Akses ditolak: Hanya Super Admin yang berhak memulihkan akun Admin.' };
+          }
+        }
         sheet.getRange(i + 2, statusCol).setValue('Active');
         SpreadsheetApp.flush();
         logActivity_('RESTORE_TRASH', id, 'Pulihkan item ' + module + ' dari tong sampah', userSession);
@@ -4866,14 +5051,28 @@ function permanentDeleteTrashItem(module, id, userSession) {
     else if (mod === 'keuangan' || mod === 'finance') sheet = getFinanceSheet_();
     else if (mod === 'materi') sheet = getMateriSheet_();
     else if (mod === 'tool' || mod === 'tools') sheet = getToolsSheet_();
+    else if (mod === 'pengguna' || mod === 'user' || mod === 'users') {
+      if (!isSuperAdmin(userSession) && !canPerformModuleAction(userSession, 'users', 'delete')) {
+        return { success: false, message: 'Akses ditolak: Anda tidak berhak menghapus permanen akun pengguna.' };
+      }
+      sheet = getUserSheet_();
+    }
+    else if (mod === 'laporan' || mod === 'worklog') sheet = getLaporanKerjaSheet_();
 
     if (!sheet) return { success: false, message: 'Modul tidak dikenali' };
 
     var lastRow = sheet.getLastRow();
     if (lastRow <= 1) return { success: false, message: 'Data tidak ditemukan' };
     var ids = sheet.getRange(2, 1, lastRow - 1, 1).getDisplayValues();
+    var targetMatch = (id || '').toString().trim();
     for (var i = 0; i < ids.length; i++) {
-      if (ids[i][0] === id) {
+      if ((ids[i][0] || '').toString().trim() === targetMatch) {
+        if (mod === 'pengguna' || mod === 'user' || mod === 'users') {
+          var roleVal = (sheet.getRange(i + 2, 8).getDisplayValue() || '').toString().toUpperCase().replace(/[\s_]/g, '');
+          if (!isSuperAdmin(userSession) && (roleVal === 'SUPERADMIN' || roleVal === 'OWNER' || roleVal === 'SUPER' || roleVal === 'ADMIN')) {
+            return { success: false, message: 'Akses ditolak: Hanya Super Admin yang berhak menghapus permanen akun Admin.' };
+          }
+        }
         sheet.deleteRow(i + 2);
         SpreadsheetApp.flush();
         logActivity_('PERMANENT_DELETE', id, 'Hapus permanen item ' + module + ' dari database', userSession);

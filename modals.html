@@ -5,9 +5,9 @@
 
 <!-- 1. MODAL LOGIN & AUTHENTICATION GATE -->
 <div id="modalLogin" class="app-modal hidden">
-    <div class="glass-card w-full max-w-md p-6 space-y-5 shadow-2xl border border-emerald-500/30">
+    <div class="glass-card w-full max-w-md max-h-[92vh] overflow-y-auto custom-scrollbar p-6 space-y-5 shadow-2xl border border-emerald-500/30">
         <div class="text-center space-y-1.5">
-            <img src="/logo.jpg" alt="DoGo Studio" class="w-16 h-16 rounded-2xl mx-auto object-cover shadow-xl shadow-emerald-500/30 border border-emerald-500/40 mb-1">
+            <img src="/logo.jpg" alt="DoGo Studio" onerror="this.onerror=null; this.src='data:image/svg+xml,%3Csvg xmlns=%27http://www.w3.org/2000/svg%27 viewBox=%270 0 100 100%27%3E%3Crect width=%27100%27 height=%27100%27 rx=%2722%27 fill=%27%2304140d%27/%3E%3Ccircle cx=%2750%27 cy=%2750%27 r=%2738%27 fill=%27none%27 stroke=%27%2310b981%27 stroke-width=%274%27/%3E%3Ctext x=%2750%27 y=%2762%27 font-family=%27Arial,sans-serif%27 font-size=%2738%27 font-weight=%27800%27 fill=%27%2334d399%27 text-anchor=%27middle%27%3EDG%3C/text%3E%3C/svg%3E';" class="w-16 h-16 rounded-2xl mx-auto object-cover shadow-xl shadow-emerald-500/30 border border-emerald-500/40 mb-1">
             <h2 class="text-xl font-extrabold text-white tracking-tight">DoGo Studio V1</h2>
             <p class="text-xs text-gray-400">Masuk untuk mengelola operasional studio YouTube</p>
         </div>
@@ -74,18 +74,17 @@
             </button>
         </div>
 
-        <!-- Google Quick Sign-Up Option -->
-        <div class="px-5 pt-4 pb-1 space-y-2.5">
-            <div id="googleSignInBtnRegister" class="flex justify-center w-full min-h-[44px]"></div>
-            <div class="relative flex items-center justify-center pt-1">
-                <div class="border-t border-emerald-500/15 w-full"></div>
-                <span class="bg-[#07120b] px-3 text-[10px] text-slate-400 font-medium uppercase tracking-wider shrink-0">atau daftar manual dengan formulir & OTP</span>
-                <div class="border-t border-emerald-500/15 w-full"></div>
-            </div>
-        </div>
-
         <!-- STEP 1: FORMULIR DATA PENDAFTARAN -->
         <form id="formRegister" onsubmit="handleRegisterSubmit(event)" class="flex-1 overflow-y-auto custom-scrollbar p-5 space-y-3.5 text-xs">
+            <!-- Google Quick Sign-Up Option (Step 1 Only) -->
+            <div class="pb-1 space-y-2.5">
+                <div id="googleSignInBtnRegister" class="flex justify-center w-full min-h-[44px]"></div>
+                <div class="relative flex items-center justify-center pt-1">
+                    <div class="border-t border-emerald-500/15 w-full"></div>
+                    <span class="bg-[#07120b] px-3 text-[10px] text-slate-400 font-medium uppercase tracking-wider shrink-0">atau daftar manual dengan formulir & OTP</span>
+                    <div class="border-t border-emerald-500/15 w-full"></div>
+                </div>
+            </div>
             <div class="space-y-1">
                 <label class="text-gray-300 font-semibold">Nama Lengkap Sesuai KTP <span class="text-rose-400">*</span></label>
                 <input type="text" id="regNama" required placeholder="Nama Lengkap" class="glass-input w-full px-3 py-2 rounded-xl text-xs bg-slate-900/80 text-white">
@@ -1492,8 +1491,12 @@
                 </button>
             </div>
         </div>
-        <div class="flex-1 w-full h-full bg-slate-950 relative overflow-hidden">
-            <iframe id="inAppToolIframe" src="" class="w-full h-full border-0" sandbox="allow-scripts allow-same-origin allow-forms allow-popups"></iframe>
+        <div class="flex-1 w-full h-full bg-slate-950 relative overflow-hidden flex flex-col">
+            <div id="inAppToolFrameHint" class="px-4 py-1.5 bg-amber-500/10 border-b border-amber-500/20 flex items-center justify-between gap-2 text-[11px] text-amber-200/90 shrink-0">
+                <span><i class="fa-solid fa-circle-info text-amber-400 mr-1.5"></i>Jika tampilan kosong karena kebijakan situs tujuan (X-Frame-Options), klik <strong class="text-white">Buka Tab Baru</strong> di kanan atas.</span>
+                <button type="button" onclick="document.getElementById('inAppToolFrameHint').classList.add('hidden')" class="text-amber-300 hover:text-white px-1.5 py-0.5 rounded" title="Tutup catatan"><i class="fa-solid fa-xmark"></i></button>
+            </div>
+            <iframe id="inAppToolIframe" src="" class="flex-1 w-full h-full border-0" sandbox="allow-scripts allow-same-origin allow-forms allow-popups"></iframe>
         </div>
     </div>
 </div>
@@ -1520,14 +1523,16 @@
             </button>
         </div>
         <div class="p-4 border-b border-white/5 flex items-center justify-between gap-3 text-xs">
-            <div class="flex items-center gap-2">
+            <div class="flex items-center flex-wrap gap-1.5 sm:gap-2">
                 <button type="button" onclick="filterTrashModule('ALL')" class="trash-filter-btn active px-3 py-1.5 rounded-xl bg-white/10 text-white font-bold">Semua Data</button>
                 <button type="button" onclick="filterTrashModule('Channel')" class="trash-filter-btn px-3 py-1.5 rounded-xl bg-white/5 text-gray-300">Channel</button>
                 <button type="button" onclick="filterTrashModule('Email')" class="trash-filter-btn px-3 py-1.5 rounded-xl bg-white/5 text-gray-300">Email</button>
                 <button type="button" onclick="filterTrashModule('AdSense')" class="trash-filter-btn px-3 py-1.5 rounded-xl bg-white/5 text-gray-300">AdSense</button>
                 <button type="button" onclick="filterTrashModule('Keuangan')" class="trash-filter-btn px-3 py-1.5 rounded-xl bg-white/5 text-gray-300">Keuangan</button>
+                <button type="button" onclick="filterTrashModule('Pengguna')" class="trash-filter-btn px-3 py-1.5 rounded-xl bg-white/5 text-gray-300">Pengguna</button>
+                <button type="button" onclick="filterTrashModule('Laporan')" class="trash-filter-btn px-3 py-1.5 rounded-xl bg-white/5 text-gray-300">Laporan</button>
             </div>
-            <button type="button" onclick="loadTrashBinData()" class="p-2 rounded-lg bg-white/5 hover:bg-white/10 text-gray-300 text-xs" title="Refresh">
+            <button type="button" onclick="loadTrashBinData()" class="p-2 rounded-lg bg-white/5 hover:bg-white/10 text-gray-300 text-xs shrink-0" title="Refresh">
                 <i class="fa-solid fa-rotate-right"></i>
             </button>
         </div>

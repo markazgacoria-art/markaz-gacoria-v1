@@ -1,4 +1,4 @@
-const CACHE_NAME = 'dogo-studio-cache-v1';
+const CACHE_NAME = 'dogo-studio-cache-v2';
 const PRECACHE_ASSETS = [
   '/',
   '/manifest.json',
@@ -37,12 +37,20 @@ self.addEventListener('activate', (event) => {
   );
 });
 
-// Fetch Event: Stale-While-Revalidate for Static Assets, Network-Only for /api/ and GAS
+// Fetch Event: Stale-While-Revalidate for Static Assets, Network-Only for /api/, Auth, and GAS
 self.addEventListener('fetch', (event) => {
+  if (event.request.method !== 'GET') return;
+
   const url = new URL(event.request.url);
 
-  // Never cache API or Google Apps Script requests
-  if (url.pathname.startsWith('/api') || url.hostname.includes('script.google.com') || url.hostname.includes('googleusercontent.com')) {
+  // Never cache API, Google OAuth, or Google Apps Script requests
+  if (
+    url.pathname.startsWith('/api') ||
+    url.hostname.includes('script.google.com') ||
+    url.hostname.includes('googleusercontent.com') ||
+    url.hostname.includes('accounts.google.com') ||
+    url.hostname.includes('oauth2.googleapis.com')
+  ) {
     return;
   }
 
@@ -58,24 +66,26 @@ self.addEventListener('fetch', (event) => {
           return networkResponse;
         })
         .catch(() => {
-          return caches.match('/') || caches.match(event.request);
+          return caches.match('/').then((cached) => cached || caches.match(event.request));
         })
     );
     return;
   }
 
-  // Static Assets: Cache first, fallback to network
+  // Static Assets: Stale-While-Revalidate (instant cache hit + background update)
   event.respondWith(
-    caches.match(event.request).then((cachedResponse) => {
-      if (cachedResponse) {
-        return cachedResponse;
-      }
-      return fetch(event.request).then((networkResponse) => {
-        if (networkResponse && networkResponse.status === 200 && event.request.method === 'GET') {
-          const responseClone = networkResponse.clone();
-          caches.open(CACHE_NAME).then((cache) => cache.put(event.request, responseClone));
-        }
-        return networkResponse;
+    caches.open(CACHE_NAME).then((cache) => {
+      return cache.match(event.request).then((cachedResponse) => {
+        const fetchPromise = fetch(event.request)
+          .then((networkResponse) => {
+            if (networkResponse && (networkResponse.status === 200 || networkResponse.type === 'opaque')) {
+              cache.put(event.request, networkResponse.clone());
+            }
+            return networkResponse;
+          })
+          .catch(() => cachedResponse);
+
+        return cachedResponse || fetchPromise;
       });
     })
   );

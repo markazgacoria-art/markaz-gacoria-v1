@@ -92,6 +92,100 @@ function sanitizeHttpUrl(rawUrl, allowDataImage) {
   return '';
 }
 
+function renderStatusDotBadge(label, tone) {
+  var palettes = {
+    emerald: { box: 'bg-emerald-500/15 text-emerald-300 border-emerald-500/30', dot: 'bg-emerald-400' },
+    rose:    { box: 'bg-rose-500/15 text-rose-300 border-rose-500/30', dot: 'bg-rose-400' },
+    amber:   { box: 'bg-amber-500/15 text-amber-300 border-amber-500/30', dot: 'bg-amber-400' },
+    slate:   { box: 'bg-slate-800/80 text-slate-300 border-slate-700', dot: 'bg-slate-400' }
+  };
+  var p = palettes[tone] || palettes.slate;
+  return '<span class="inline-flex items-center gap-1.5 px-2.5 py-0.5 rounded-full border text-[10px] font-bold ' + p.box + '">' +
+         '<span class="w-1.5 h-1.5 rounded-full shrink-0 ' + p.dot + '"></span>' +
+         '<span>' + escapeHtml(label) + '</span></span>';
+}
+
+/**
+ * Pembaca & Kompresor File Aman Lintas Lingkungan (Mengatasi batas payload 4,5 MB Vercel Proxy)
+ */
+function readFileSafeForUpload(file, opts, onDone, onFail) {
+  opts = opts || {};
+  var maxRawNonImage = isGasEnv ? (10 * 1024 * 1024) : (3.1 * 1024 * 1024);
+  var isImage = file && file.type && file.type.indexOf('image/') === 0 && file.type !== 'image/gif';
+
+  if (!file) {
+    if (onFail) onFail('Berkas tidak ditemukan.');
+    return;
+  }
+
+  if (!isImage && file.size > maxRawNonImage) {
+    var mbLimit = isGasEnv ? '10 MB' : '3 MB';
+    if (onFail) onFail('Ukuran file "' + file.name + '" melebihi batas ' + mbLimit + ' untuk unggahan langsung.');
+    return;
+  }
+
+  if (file.size > 15 * 1024 * 1024) {
+    if (onFail) onFail('Ukuran file "' + file.name + '" terlalu besar (maks. 15 MB sebelum kompresi).');
+    return;
+  }
+
+  var reader = new FileReader();
+  reader.onerror = function() {
+    if (onFail) onFail('Gagal membaca file: ' + file.name);
+  };
+  reader.onload = function(ev) {
+    var rawDataUrl = ev.target.result;
+    // Kompres gambar otomatis apabila ukuran > 1 MB (agar lolos cepat di Vercel & ringan di Drive)
+    if (!isImage || file.size <= 1024 * 1024) {
+      onDone({ dataUrl: rawDataUrl, mimeType: file.type || 'application/octet-stream', fileName: file.name });
+      return;
+    }
+
+    var img = new Image();
+    img.onerror = function() {
+      if (file.size > maxRawNonImage) {
+        if (onFail) onFail('Gagal memproses kompresi gambar besar.');
+      } else {
+        onDone({ dataUrl: rawDataUrl, mimeType: file.type || 'image/jpeg', fileName: file.name });
+      }
+    };
+    img.onload = function() {
+      try {
+        var maxDim = opts.maxDim || 1600;
+        var w = img.width;
+        var h = img.height;
+        if (w > maxDim || h > maxDim) {
+          if (w >= h) { h = Math.round(h * (maxDim / w)); w = maxDim; }
+          else { w = Math.round(w * (maxDim / h)); h = maxDim; }
+        }
+        var canvas = document.createElement('canvas');
+        canvas.width = w;
+        canvas.height = h;
+        var ctx = canvas.getContext('2d');
+        ctx.drawImage(img, 0, 0, w, h);
+
+        var quality = 0.82;
+        var outUrl = canvas.toDataURL('image/jpeg', quality);
+        var maxDataLen = isGasEnv ? (12 * 1024 * 1024) : (3.6 * 1024 * 1024);
+        while (outUrl.length > maxDataLen && quality > 0.4) {
+          quality -= 0.14;
+          outUrl = canvas.toDataURL('image/jpeg', quality);
+        }
+        if (outUrl.length > maxDataLen) {
+          if (onFail) onFail('Ukuran gambar setelah kompresi masih terlalu besar. Pilih gambar lebih kecil.');
+          return;
+        }
+        var outName = file.name.replace(/\.[^.]+$/, '') + '.jpg';
+        onDone({ dataUrl: outUrl, mimeType: 'image/jpeg', fileName: outName });
+      } catch (compErr) {
+        onDone({ dataUrl: rawDataUrl, mimeType: file.type || 'image/jpeg', fileName: file.name });
+      }
+    };
+    img.src = rawDataUrl;
+  };
+  reader.readAsDataURL(file);
+}
+
 function clearAllClientMemoryCaches() {
   Object.keys(appDataCache).forEach(function(k) {
     appDataCache[k].data = null;
@@ -401,10 +495,21 @@ var regOtpCooldownSeconds = 0;
 // GOOGLE SIGN-IN IDENTITY SERVICES (GIS) CONTROLLER
 // ===============================================================================
 var GOOGLE_CLIENT_ID = window.DOGO_GOOGLE_CLIENT_ID || '224443808801-cc7qfebil8jipnt4p1806vau8rabv302.apps.googleusercontent.com';
+var gisInitAttempts = 0;
 
 function initGoogleSignIn() {
+  if (isGasEnv) return; // Google Identity Services iframe origin berjalan khusus di Vercel/web mandiri
   if (typeof google === 'undefined' || !google.accounts || !google.accounts.id) {
-    setTimeout(initGoogleSignIn, 500);
+    gisInitAttempts++;
+    if (gisInitAttempts <= 20) {
+      setTimeout(initGoogleSignIn, 500);
+    } else {
+      var fallbackNotice = '<p class="text-[10px] text-slate-500 text-center">Tombol Google Sign-In tidak tersedia saat offline / diblokir ekstensi.</p>';
+      var bL = document.getElementById('googleSignInBtnLogin');
+      var bR = document.getElementById('googleSignInBtnRegister');
+      if (bL && !bL.innerHTML) bL.innerHTML = fallbackNotice;
+      if (bR && !bR.innerHTML) bR.innerHTML = fallbackNotice;
+    }
     return;
   }
 
@@ -418,25 +523,27 @@ function initGoogleSignIn() {
 
     var btnLogin = document.getElementById('googleSignInBtnLogin');
     if (btnLogin) {
+      var loginW = Math.min(320, Math.max(220, btnLogin.clientWidth || 260));
       google.accounts.id.renderButton(btnLogin, {
         theme: 'filled_black',
         size: 'large',
         shape: 'pill',
         text: 'signin_with',
         logo_alignment: 'left',
-        width: 280
+        width: loginW
       });
     }
 
     var btnReg = document.getElementById('googleSignInBtnRegister');
     if (btnReg) {
+      var regW = Math.min(320, Math.max(220, btnReg.clientWidth || 260));
       google.accounts.id.renderButton(btnReg, {
         theme: 'filled_black',
         size: 'large',
         shape: 'pill',
         text: 'signup_with',
         logo_alignment: 'left',
-        width: 280
+        width: regW
       });
     }
   } catch (err) {
@@ -449,9 +556,11 @@ function handleGoogleSignInCallback(response) {
     showToast('Gagal memverifikasi akun Google', 'error');
     return;
   }
+  setInlineAuthError('loginErrorMsg', 'Memverifikasi akun Google ke server...', true);
   showToast('Memverifikasi akun Google ke server...', 'info');
   callBackend('loginWithGoogle', [{ credential: response.credential }], function(res) {
     if (res && res.success && res.userSession && res.userSession.token) {
+      setInlineAuthError('loginErrorMsg', '');
       currentUserSession = res.userSession;
       localStorage.setItem(SESSION_KEY, JSON.stringify(currentUserSession));
       closeModal('modalLogin');
@@ -460,16 +569,28 @@ function handleGoogleSignInCallback(response) {
       if (authWrapper) authWrapper.classList.remove('hidden');
       applyUserSessionUI();
       var startView = getFirstAllowedView();
-      if (startView) switchView(startView);
+      if (startView) {
+        switchView(startView, true);
+      } else {
+        showToast('Akun Anda belum memiliki izin akses modul apapun. Hubungi Super Admin.', 'warning');
+      }
       showToast('Login berhasil! Selamat datang, ' + (currentUserSession.nama || 'Pengguna'), 'success');
     } else if (res && res.pendingApproval) {
-      closeModal('modalLogin');
+      // Tetap pertahankan modalLogin terbuka agar tidak terjadi layar hitam kosong!
       closeModal('modalRegister');
-      showToast(res.message || 'Pendaftaran via akun Google berhasil! Menunggu persetujuan Super Admin.', 'info');
+      openModal('modalLogin');
+      var pMsg = res.message || 'Pendaftaran via akun Google berhasil! Menunggu persetujuan Super Admin.';
+      setInlineAuthError('loginErrorMsg', pMsg, true);
+      showToast(pMsg, 'info');
     } else {
-      showToast(res.message || 'Gagal masuk dengan akun Google', 'warning');
+      closeModal('modalRegister');
+      openModal('modalLogin');
+      var eMsg = (res && res.message) || 'Gagal masuk dengan akun Google';
+      setInlineAuthError('loginErrorMsg', eMsg, false);
+      showToast(eMsg, 'warning');
     }
   }, function(err) {
+    setInlineAuthError('loginErrorMsg', 'Error koneksi Google login: ' + err.message, false);
     showToast('Error koneksi Google login: ' + err.message, 'error');
   });
 }
@@ -763,14 +884,17 @@ function initApp() {
   // Initialize Official Google Sign-In
   initGoogleSignIn();
 
-  // Register PWA Service Worker (If Supported)
-  if ('serviceWorker' in navigator) {
+  // Register PWA Service Worker only on standalone hosting (not inside Google Apps Script iframe)
+  if (!isGasEnv && window.location && window.location.hostname.indexOf('google.com') === -1 && 'serviceWorker' in navigator) {
     window.addEventListener('load', function() {
       navigator.serviceWorker.register('/sw.js').catch(function(err) {
         console.log('SW note:', err.message);
       });
     });
   }
+
+  // Show PWA Install button on iOS Safari when not already in standalone mode
+  initIosPwaPromptVisibility();
 
   // Setup Mobile Drawer Listeners
   var btnOpen = document.getElementById('btnOpenMobileSidebar');
@@ -870,12 +994,22 @@ function closeMobileSidebarDrawer() {
 // PWA INSTALLATION CONTROLLER
 // ===============================================================================
 var deferredPwaPrompt = null;
+var isIosDevice = /iPad|iPhone|iPod/.test(navigator.userAgent) && !window.MSStream;
+var isStandalonePwa = (window.matchMedia && window.matchMedia('(display-mode: standalone)').matches) || window.navigator.standalone === true;
+
 window.addEventListener('beforeinstallprompt', function(e) {
   e.preventDefault();
   deferredPwaPrompt = e;
   var btnPwa = document.getElementById('btnInstallPwa');
-  if (btnPwa) btnPwa.classList.remove('hidden');
+  if (btnPwa && !isStandalonePwa) btnPwa.classList.remove('hidden');
 });
+
+function initIosPwaPromptVisibility() {
+  if (isIosDevice && !isStandalonePwa && !isGasEnv) {
+    var btnPwa = document.getElementById('btnInstallPwa');
+    if (btnPwa) btnPwa.classList.remove('hidden');
+  }
+}
 
 function triggerPwaInstall() {
   if (deferredPwaPrompt) {
@@ -888,8 +1022,10 @@ function triggerPwaInstall() {
       var btnPwa = document.getElementById('btnInstallPwa');
       if (btnPwa) btnPwa.classList.add('hidden');
     });
+  } else if (isIosDevice) {
+    showToast('Di Safari iPhone/iPad: ketuk ikon Bagikan (Share) di bawah layar lalu pilih "Add to Home Screen".', 'info');
   } else {
-    showToast('Buka menu browser Anda lalu pilih "Add to Home Screen" atau "Install App"', 'info');
+    showToast('Buka menu browser Anda lalu pilih "Install DoGo Studio" / "Add to Home Screen".', 'info');
   }
 }
 
@@ -922,7 +1058,14 @@ function applyUserSessionUI() {
   var sAvatar = document.getElementById('sidebarUserAvatar');
   if (sName) sName.innerText = nama;
   if (sRole) sRole.innerText = role.toUpperCase();
-  if (sAvatar) sAvatar.innerText = initial;
+  if (sAvatar) {
+    var safeAvatarUrl = sanitizeHttpUrl(currentUserSession.fotoProfil || '');
+    if (safeAvatarUrl) {
+      sAvatar.innerHTML = '<img src="' + escapeHtml(safeAvatarUrl) + '" alt="' + escapeHtml(initial) + '" class="w-full h-full rounded-full object-cover" onerror="this.parentNode.innerText=\'' + escapeHtml(initial) + '\';">';
+    } else {
+      sAvatar.innerText = initial;
+    }
+  }
 
   var hGreeting = document.getElementById('topHeaderGreeting');
   var hRole = document.getElementById('topHeaderRoleBadge');
@@ -1190,7 +1333,7 @@ function refreshCurrentViewData() {
 // Universal Backend Bridge (dengan interceptor authExpired global)
 function callBackend(fnName, args, onSuccess, onFailure) {
   var wrappedSuccess = function(res) {
-    if (fnName !== 'loginUser' && fnName !== 'logoutUser' && res && res.authExpired === true) {
+    if (fnName !== 'loginUser' && fnName !== 'loginWithGoogle' && fnName !== 'logoutUser' && res && res.authExpired === true) {
       localStorage.removeItem(SESSION_KEY);
       currentUserSession = null;
       clearAllClientMemoryCaches();
@@ -1213,10 +1356,10 @@ function callBackend(fnName, args, onSuccess, onFailure) {
       });
     runner[fnName].apply(runner, args);
   } else {
-    // Jembatan REST API Otomatis untuk Hosting Vercel / Eksternal
+    // Jembatan REST API Universal untuk Hosting Vercel / Custom Domain / Localhost
     var defaultGasUrl = 'https://script.google.com/macros/s/AKfycbyiJ9RAUq75VHFBBnLRpswRoCFVMHy_ppyL1Q8nGLqVO5_yIFO5Dc88zPadTnKLQcpP/exec';
-    var isVercelHost = (typeof window !== 'undefined' && window.location && window.location.hostname && (window.location.hostname.indexOf('vercel.app') !== -1 || window.location.hostname === 'localhost'));
-    var apiEndpoint = isVercelHost ? '/api/gas' : defaultGasUrl;
+    var isFileProto = (typeof window !== 'undefined' && window.location && window.location.protocol === 'file:');
+    var apiEndpoint = isFileProto ? defaultGasUrl : '/api/gas';
 
     fetch(apiEndpoint, {
       method: 'POST',
@@ -1227,7 +1370,19 @@ function callBackend(fnName, args, onSuccess, onFailure) {
       redirect: 'follow'
     })
     .then(function(response) {
-      return response.json();
+      if (!response.ok) {
+        if (response.status === 413) {
+          throw new Error('Ukuran payload melebihi batas server (4,5 MB). Gunakan gambar lebih kecil.');
+        }
+        throw new Error('HTTP ' + response.status + ' dari API Gateway');
+      }
+      return response.text().then(function(txt) {
+        try {
+          return JSON.parse(txt);
+        } catch (e) {
+          throw new Error('Respon server tidak valid JSON.');
+        }
+      });
     })
     .then(function(data) {
       wrappedSuccess(data);
@@ -2265,12 +2420,12 @@ function renderChannelTable(data) {
     var jam = ch.jam !== undefined ? ch.jam : (ch.watchTime || 0);
 
     var monetBadge = isMonet
-      ? '<span class="px-2 py-0.5 rounded-full bg-amber-500/20 text-amber-400 border border-amber-500/30 text-[10px] font-bold">⭐ YES</span>'
-      : '<span class="px-2 py-0.5 rounded-full bg-slate-800 text-slate-400 border border-slate-700 text-[10px] font-medium">⚪ NO</span>';
+      ? '<span class="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full bg-amber-500/15 text-amber-300 border border-amber-500/30 text-[10px] font-bold"><i class="fa-solid fa-star text-[9px] text-amber-400"></i> YES</span>'
+      : renderStatusDotBadge('NO', 'slate');
 
     var statusBadge = isAktif
-      ? '<span class="px-2 py-0.5 rounded-full bg-emerald-500/20 text-emerald-400 border border-emerald-500/30 text-[10px] font-bold">🟢 Aktif</span>'
-      : '<span class="px-2 py-0.5 rounded-full bg-rose-500/20 text-rose-400 border border-rose-500/30 text-[10px] font-bold">🔴 Nonaktif</span>';
+      ? renderStatusDotBadge('Aktif', 'emerald')
+      : renderStatusDotBadge('Nonaktif', 'rose');
 
     var logoImg = safeLogo 
       ? '<img src="' + escapeHtml(safeLogo) + '" class="w-8 h-8 rounded-full object-cover border border-emerald-500/30" onerror="this.onerror=null;this.src=\'https://via.placeholder.com/32?text=YT\';">'
@@ -2770,17 +2925,16 @@ function handleThumbFileUpload(event) {
     }
 
     var file = files[currentIndex];
-    showToast('Mengunggah gambar ' + (currentIndex + 1) + ' dari ' + total + ': ' + file.name, 'info');
+    showToast('Memproses & mengunggah gambar ' + (currentIndex + 1) + ' dari ' + total + ': ' + file.name, 'info');
 
-    var reader = new FileReader();
-    reader.onload = function(e) {
+    readFileSafeForUpload(file, { maxDim: 1600 }, function(processed) {
       var payload = {
         channelId: ch.id,
         channelName: ch.nama || ch.name || 'Channel',
         assetType: 'thumbnail',
-        fileName: file.name,
-        mimeType: file.type || 'image/jpeg',
-        base64Data: e.target.result
+        fileName: processed.fileName,
+        mimeType: processed.mimeType || 'image/jpeg',
+        base64Data: processed.dataUrl
       };
 
       callBackend('uploadChannelAsset', [payload, currentUserSession], function(res) {
@@ -2788,7 +2942,7 @@ function handleThumbFileUpload(event) {
           successCount++;
           if (!ch.thumbnails) ch.thumbnails = [];
           ch.thumbnails.push({
-            name: file.name,
+            name: processed.fileName,
             url: res.fileUrl,
             fileId: res.fileId,
             date: new Date().toLocaleDateString('id-ID')
@@ -2804,13 +2958,11 @@ function handleThumbFileUpload(event) {
         currentIndex++;
         uploadNext();
       });
-    };
-    reader.onerror = function() {
-      showToast('Gagal membaca file: ' + file.name, 'error');
+    }, function(errMsg) {
+      showToast(errMsg, 'warning');
       currentIndex++;
       uploadNext();
-    };
-    reader.readAsDataURL(file);
+    });
   }
 
   uploadNext();
@@ -2866,15 +3018,14 @@ function handleAudioFileUpload(event) {
     var file = files[currentIndex];
     showToast('Mengunggah audio ' + (currentIndex + 1) + ' dari ' + total + ': ' + file.name, 'info');
 
-    var reader = new FileReader();
-    reader.onload = function(e) {
+    readFileSafeForUpload(file, {}, function(processed) {
       var payload = {
         channelId: ch.id,
         channelName: ch.nama || ch.name || 'Channel',
         assetType: 'audio',
-        fileName: file.name,
-        mimeType: file.type || 'audio/mpeg',
-        base64Data: e.target.result
+        fileName: processed.fileName,
+        mimeType: processed.mimeType || 'audio/mpeg',
+        base64Data: processed.dataUrl
       };
 
       callBackend('uploadChannelAsset', [payload, currentUserSession], function(res) {
@@ -2882,7 +3033,7 @@ function handleAudioFileUpload(event) {
           successCount++;
           if (!ch.audios) ch.audios = [];
           ch.audios.push({
-            name: file.name,
+            name: processed.fileName,
             url: res.fileUrl,
             fileId: res.fileId,
             date: new Date().toLocaleDateString('id-ID')
@@ -2898,13 +3049,11 @@ function handleAudioFileUpload(event) {
         currentIndex++;
         uploadNext();
       });
-    };
-    reader.onerror = function() {
-      showToast('Gagal membaca audio: ' + file.name, 'error');
+    }, function(errMsg) {
+      showToast(errMsg, 'warning');
       currentIndex++;
       uploadNext();
-    };
-    reader.readAsDataURL(file);
+    });
   }
 
   uploadNext();
@@ -3363,12 +3512,12 @@ function renderAdSenseTable(items) {
     var key2fa = allowCreds ? (ad.kunci2fa || ad.autentikator || '-') : '🔒 Terbatas';
 
     var pinBadge = isPin 
-      ? '<span class="px-2 py-0.5 rounded-full bg-emerald-500/20 text-emerald-400 border border-emerald-500/30 text-[10px] font-bold">🟢 Sudah PIN</span>'
-      : '<span class="px-2 py-0.5 rounded-full bg-amber-500/20 text-amber-400 border border-amber-500/30 text-[10px] font-bold">🟡 Belum PIN</span>';
+      ? renderStatusDotBadge('Sudah PIN', 'emerald')
+      : renderStatusDotBadge('Belum PIN', 'amber');
 
     var verifBadge = isVerif
-      ? '<span class="px-2 py-0.5 rounded-full bg-emerald-500/20 text-emerald-400 border border-emerald-500/30 text-[10px] font-bold">🟢 Terverifikasi</span>'
-      : '<span class="px-2 py-0.5 rounded-full bg-amber-500/20 text-amber-400 border border-amber-500/30 text-[10px] font-bold">🟡 Pending</span>';
+      ? renderStatusDotBadge('Terverifikasi', 'emerald')
+      : renderStatusDotBadge('Pending', 'amber');
 
     var ktpBtn = '<span class="text-slate-500 text-[10px]">Belum upload</span>';
     if (!allowKtp) {
@@ -3456,23 +3605,17 @@ function editAdSenseModal(ad) {
 function handleAdSenseKtpUpload(inputEl) {
   var file = inputEl && inputEl.files && inputEl.files[0];
   if (!file) return;
-  if (file.size > 10 * 1024 * 1024) {
-    showToast('Ukuran foto KTP maksimal 10MB.', 'warning');
-    inputEl.value = '';
-    return;
-  }
   var lbl = document.getElementById('lblBtnUploadAdsKtp');
-  if (lbl) lbl.innerText = 'Mengunggah...';
-  var reader = new FileReader();
-  reader.onload = function(ev) {
+  if (lbl) lbl.innerText = 'Mengompres & Mengunggah...';
+  readFileSafeForUpload(file, { maxDim: 1600 }, function(processed) {
     var namaKtp = (document.getElementById('adsNamaKtp') ? document.getElementById('adsNamaKtp').value.trim() : '') || 'AdSense Umum';
     var payload = {
       module: 'adsense',
       folderType: 'adsense_ktp',
       targetName: namaKtp,
-      fileName: file.name,
-      mimeType: file.type || 'image/jpeg',
-      base64Data: ev.target.result
+      fileName: processed.fileName,
+      mimeType: processed.mimeType || 'image/jpeg',
+      base64Data: processed.dataUrl
     };
     callBackend('uploadStudioFile', [payload, currentUserSession], function(res) {
       if (lbl) lbl.innerText = 'Upload Foto KTP';
@@ -3489,8 +3632,11 @@ function handleAdSenseKtpUpload(inputEl) {
       inputEl.value = '';
       showToast('Kesalahan unggah: ' + err.message, 'error');
     });
-  };
-  reader.readAsDataURL(file);
+  }, function(errMsg) {
+    if (lbl) lbl.innerText = 'Upload Foto KTP';
+    inputEl.value = '';
+    showToast(errMsg, 'warning');
+  });
 }
 
 function deleteAdSenseAction(id, pubId) {
@@ -3841,8 +3987,8 @@ function renderFinanceTable(items) {
   items.forEach(function(tx, idx) {
     var isPemasukan = (tx.tipe || '').toLowerCase() === 'pemasukan';
     var tipeBadge = isPemasukan
-      ? '<span class="px-2 py-0.5 rounded-full bg-emerald-500/20 text-emerald-400 border border-emerald-500/30 text-[10px] font-bold">🟢 Pemasukan</span>'
-      : '<span class="px-2 py-0.5 rounded-full bg-rose-500/20 text-rose-400 border border-rose-500/30 text-[10px] font-bold">🔴 Pengeluaran</span>';
+      ? renderStatusDotBadge('Pemasukan', 'emerald')
+      : renderStatusDotBadge('Pengeluaran', 'rose');
 
     var nominalClass = isPemasukan ? 'text-emerald-400' : 'text-rose-400';
     var rawNom = parseNominalAmount(tx.nominal);
@@ -4080,47 +4226,54 @@ function handleFinanceUpload(inputEl, targetType) {
 
   var lblBtn = (targetType === 'bukti') ? document.getElementById('lblBtnUploadNota') : document.getElementById('lblBtnUploadFoto');
   var origText = lblBtn ? lblBtn.innerText : 'Upload';
-  if (lblBtn) lblBtn.innerText = 'Mengunggah...';
+  if (lblBtn) lblBtn.innerText = 'Mengompres...';
 
-  showToast('Mengunggah ' + (targetType === 'bukti' ? 'bukti nota' : 'foto barang') + ' ke Google Drive...', 'info');
+  showToast('Memproses ' + (targetType === 'bukti' ? 'bukti nota' : 'foto barang') + ' untuk Google Drive...', 'info');
 
-  var reader = new FileReader();
-  reader.onload = function(e) {
-    var base64 = e.target.result;
+  readFileSafeForUpload(file, { maxDim: 1600 }, function(processed) {
+    if (lblBtn) lblBtn.innerText = 'Mengunggah...';
     var subfolder = (targetType === 'bukti') ? 'Bukti Transaksi' : 'Foto Barang';
 
     var payload = {
-      base64Data: base64,
-      mimeType: file.type,
-      fileName: file.name,
+      base64Data: processed.dataUrl,
+      mimeType: processed.mimeType || 'image/jpeg',
+      fileName: processed.fileName,
       module: 'keuangan',
       subfolder: subfolder
     };
 
     callBackend('uploadStudioFile', [payload, currentUserSession], function(res) {
       if (lblBtn) lblBtn.innerText = origText;
+      inputEl.value = '';
       var uploadedUrl = res ? (res.fileUrl || res.url || '') : '';
       if (res && res.success && uploadedUrl) {
         if (targetType === 'bukti') {
           document.getElementById('finBukti').value = uploadedUrl;
           var chip = document.getElementById('finBuktiPreviewChip');
           var chipName = document.getElementById('finBuktiFileName');
-          if (chipName) chipName.innerText = file.name;
+          if (chipName) chipName.innerText = processed.fileName;
           if (chip) { chip.classList.remove('hidden'); chip.classList.add('flex'); }
         } else {
           document.getElementById('finFotoBarang').value = uploadedUrl;
           var chipF = document.getElementById('finFotoPreviewChip');
           var chipFName = document.getElementById('finFotoFileName');
-          if (chipFName) chipFName.innerText = file.name;
+          if (chipFName) chipFName.innerText = processed.fileName;
           if (chipF) { chipF.classList.remove('hidden'); chipF.classList.add('flex'); }
         }
-        showToast('Berhasil mengunggah ' + file.name + ' ke Drive!', 'success');
+        showToast('Berhasil mengunggah ' + processed.fileName + ' ke Drive!', 'success');
       } else {
         showToast('Gagal mengunggah file: ' + (res ? (res.message || 'Error server') : 'Error server'), 'error');
       }
+    }, function(err) {
+      if (lblBtn) lblBtn.innerText = origText;
+      inputEl.value = '';
+      showToast('Kesalahan unggah: ' + err.message, 'error');
     });
-  };
-  reader.readAsDataURL(file);
+  }, function(errMsg) {
+    if (lblBtn) lblBtn.innerText = origText;
+    inputEl.value = '';
+    showToast(errMsg, 'warning');
+  });
 }
 
 function updateFinanceChip(type) {
@@ -4245,12 +4398,17 @@ if (fKat) {
 var currentMateriFilter = 'Semua';
 
 function loadMateriData(forceRefresh) {
+  if (!forceRefresh && appDataCache.materi.lastFetched > 0 && (Date.now() - appDataCache.materi.lastFetched < CACHE_TTL_MS)) {
+    renderMateriCards();
+    return;
+  }
   callBackend('getMateriList', [currentUserSession], function(res) {
     if (res && res.success) {
       appDataCache.materi.data = res.items || res.data || [];
+      appDataCache.materi.lastFetched = Date.now();
       renderMateriCards();
     } else {
-      showToast('Gagal memuat materi edukasi', 'error');
+      showToast((res && res.message) || 'Gagal memuat materi edukasi', 'error');
     }
   });
 }
@@ -4371,12 +4529,17 @@ if (fMat) {
 var currentToolsFilter = 'Semua';
 
 function loadToolsData(forceRefresh) {
+  if (!forceRefresh && appDataCache.tools.lastFetched > 0 && (Date.now() - appDataCache.tools.lastFetched < CACHE_TTL_MS)) {
+    renderToolsCards();
+    return;
+  }
   callBackend('getToolsList', [currentUserSession], function(res) {
     if (res && res.success) {
       appDataCache.tools.data = res.items || res.data || [];
+      appDataCache.tools.lastFetched = Date.now();
       renderToolsCards();
     } else {
-      showToast('Gagal memuat direktori tools', 'error');
+      showToast((res && res.message) || 'Gagal memuat direktori tools', 'error');
     }
   });
 }
@@ -4480,6 +4643,8 @@ function launchInAppToolWorkspace(url, title) {
     btnTab.href = safeUrl;
     btnTab.rel = 'noopener noreferrer';
   }
+  var hint = document.getElementById('inAppToolFrameHint');
+  if (hint) hint.classList.remove('hidden');
   var frame = document.getElementById('inAppToolIframe');
   if (frame) frame.src = safeUrl;
   openModal('modalInAppToolWorkspace');
@@ -4584,11 +4749,11 @@ function renderUserTable(items) {
     var isFrozen = (stNorm === 'dibekukan' || stNorm === 'frozen' || stNorm === 'locked');
 
     if (isPending) {
-      statusBadge = '<span class="px-2 py-0.5 rounded-full bg-amber-500/20 text-amber-400 border border-amber-500/30 text-[10px] font-bold">🟡 Pending Approval</span>';
+      statusBadge = renderStatusDotBadge('Pending Approval', 'amber');
     } else if (isFrozen) {
-      statusBadge = '<span class="px-2 py-0.5 rounded-full bg-rose-500/20 text-rose-400 border border-rose-500/30 text-[10px] font-bold">🔴 Dibekukan (5x)</span>';
+      statusBadge = renderStatusDotBadge('Dibekukan (5x)', 'rose');
     } else {
-      statusBadge = '<span class="px-2 py-0.5 rounded-full bg-emerald-500/20 text-emerald-400 border border-emerald-500/30 text-[10px] font-bold">🟢 Aktif</span>';
+      statusBadge = renderStatusDotBadge('Aktif', 'emerald');
     }
 
     var waClean = (u.noWa || '').replace(/[^0-9]/g, '');
@@ -4626,7 +4791,7 @@ function renderUserTable(items) {
 
     var permsColHtml = canSuper
       ? '<button type="button" onclick="openGranularPermsModalByIndex(' + idx + ')" class="px-2.5 py-1 rounded-lg bg-emerald-500/10 text-emerald-400 border border-emerald-500/20 hover:bg-emerald-500/20 text-[10px] font-bold flex items-center gap-1.5 mx-auto cursor-pointer"><i class="fa-solid fa-sliders"></i> Izin Akses</button>'
-      : '<span class="text-[10px] text-slate-500">🔒 Super Admin</span>';
+      : '<span class="text-[10px] text-slate-500 inline-flex items-center gap-1"><i class="fa-solid fa-lock text-[9px] text-amber-400/80"></i> Super Admin</span>';
 
     html += '<tr class="hover:bg-emerald-500/5 transition-colors">';
     html += '  <td class="py-3 px-4">';
@@ -4822,30 +4987,25 @@ function openEditUserByIndex(idx) {
 function handleEditUserKtpUpload(inputEl) {
   var file = inputEl && inputEl.files && inputEl.files[0];
   if (!file) return;
-  if (file.size > 10 * 1024 * 1024) {
-    showToast('Ukuran foto KTP maksimal 10MB.', 'warning');
-    inputEl.value = '';
-    return;
-  }
   var lbl = document.getElementById('lblBtnUploadUserKtp');
-  if (lbl) lbl.innerText = 'Mengunggah...';
-  var reader = new FileReader();
-  reader.onload = function(ev) {
+  if (lbl) lbl.innerText = 'Memproses...';
+  readFileSafeForUpload(file, { maxDim: 1600 }, function(processed) {
+    if (lbl) lbl.innerText = 'Mengunggah...';
     var userNama = (document.getElementById('editUserNama') ? document.getElementById('editUserNama').value.trim() : '') || 'Pengguna Umum';
     var payload = {
       module: 'user',
       folderType: 'user_ktp',
       targetName: userNama,
-      fileName: file.name,
-      mimeType: file.type || 'image/jpeg',
-      base64Data: ev.target.result
+      fileName: processed.fileName,
+      mimeType: processed.mimeType,
+      base64Data: processed.dataUrl
     };
     callBackend('uploadStudioFile', [payload, currentUserSession], function(res) {
       if (lbl) lbl.innerText = 'Upload Foto KTP';
       inputEl.value = '';
       if (res && res.success) {
         var urlInp = document.getElementById('editUserFotoKtpUrl');
-        if (urlInp) urlInp.value = res.fileUrl;
+        if (urlInp) urlInp.value = res.fileUrl || res.url || '';
         showToast('Foto KTP pengguna berhasil diunggah privat ke Drive!', 'success');
       } else {
         showToast((res && res.message) || 'Gagal mengunggah foto KTP', 'error');
@@ -4853,10 +5013,13 @@ function handleEditUserKtpUpload(inputEl) {
     }, function(err) {
       if (lbl) lbl.innerText = 'Upload Foto KTP';
       inputEl.value = '';
-      showToast('Kesalahan unggah: ' + err.message, 'error');
+      showToast('Kesalahan unggah: ' + ((err && err.message) || err || 'Jaringan terputus'), 'error');
     });
-  };
-  reader.readAsDataURL(file);
+  }, function(errMsg) {
+    if (lbl) lbl.innerText = 'Upload Foto KTP';
+    inputEl.value = '';
+    showToast(errMsg || 'Ukuran foto KTP terlalu besar.', 'warning');
+  });
 }
 
 function closeModalEditUser() {
@@ -5276,6 +5439,9 @@ function handleSaveGranularPerms(e) {
     } else {
       showToast(res ? res.message : 'Gagal memperbarui izin akses', 'error');
     }
+  }, function(err) {
+    if (btn) { btn.disabled = false; btn.innerText = 'Simpan Perubahan'; }
+    showToast('Gagal menyimpan izin akses: ' + ((err && err.message) || err || 'Koneksi bermasalah'), 'error');
   });
 }
 
@@ -5732,6 +5898,9 @@ function handleChannelSubmit(e) {
     } else {
       showToast(res ? res.message : 'Gagal menyimpan channel', 'error');
     }
+  }, function(err) {
+    if (btn) { btn.disabled = false; btn.innerText = 'Simpan Channel'; }
+    showToast('Gagal menyimpan channel: ' + ((err && err.message) || err || 'Koneksi bermasalah'), 'error');
   });
 }
 
@@ -5767,6 +5936,9 @@ function handleQuickCompleteSubmit(e) {
     } else {
       showToast(res ? res.message : 'Gagal menyimpan progres pengerjaan', 'error');
     }
+  }, function(err) {
+    if (btn) { btn.disabled = false; btn.innerText = 'Selesai & Pindah Jadwal'; }
+    showToast('Gagal menyimpan progres: ' + ((err && err.message) || err || 'Koneksi bermasalah'), 'error');
   });
 }
 
@@ -5802,6 +5974,9 @@ function handleEmailSubmit(e) {
     } else {
       showToast(res ? res.message : 'Gagal menyimpan email', 'error');
     }
+  }, function(err) {
+    if (btn) { btn.disabled = false; btn.innerText = 'Simpan Email'; }
+    showToast('Gagal menyimpan email: ' + ((err && err.message) || err || 'Koneksi bermasalah'), 'error');
   });
 }
 
@@ -5835,6 +6010,9 @@ function handleAdSenseSubmit(e) {
     } else {
       showToast(res ? res.message : 'Gagal menyimpan AdSense', 'error');
     }
+  }, function(err) {
+    if (btn) { btn.disabled = false; btn.innerText = 'Simpan AdSense'; }
+    showToast('Gagal menyimpan AdSense: ' + ((err && err.message) || err || 'Koneksi bermasalah'), 'error');
   });
 }
 
@@ -5865,6 +6043,9 @@ function handleFinanceSubmit(e) {
     } else {
       showToast(res ? res.message : 'Gagal menyimpan transaksi', 'error');
     }
+  }, function(err) {
+    if (btn) { btn.disabled = false; btn.innerText = 'Simpan Transaksi'; }
+    showToast('Gagal menyimpan transaksi: ' + ((err && err.message) || err || 'Koneksi bermasalah'), 'error');
   });
 }
 
@@ -5887,6 +6068,9 @@ function handleSaveKategoriKeuangan(e) {
     } else {
       showToast(res ? res.message : 'Gagal menambah kategori', 'error');
     }
+  }, function(err) {
+    if (btn) { btn.disabled = false; btn.innerText = 'Tambah Kategori'; }
+    showToast('Gagal menambah kategori: ' + ((err && err.message) || err || 'Koneksi bermasalah'), 'error');
   });
 }
 
@@ -5918,6 +6102,9 @@ function handleMateriSubmit(e) {
     } else {
       showToast(res ? res.message : 'Gagal menyimpan materi', 'error');
     }
+  }, function(err) {
+    if (btn) { btn.disabled = false; btn.innerText = 'Simpan Materi'; }
+    showToast('Gagal menyimpan materi: ' + ((err && err.message) || err || 'Koneksi bermasalah'), 'error');
   });
 }
 
@@ -5950,6 +6137,9 @@ function handleToolSubmit(e) {
     } else {
       showToast(res ? res.message : 'Gagal menyimpan tool', 'error');
     }
+  }, function(err) {
+    if (btn) { btn.disabled = false; btn.innerText = 'Simpan Tool'; }
+    showToast('Gagal menyimpan tool: ' + ((err && err.message) || err || 'Koneksi bermasalah'), 'error');
   });
 }
 
@@ -5975,31 +6165,26 @@ function openMyProfileModal() {
 function handleMyProfileKtpUpload(inputEl) {
   var file = inputEl && inputEl.files && inputEl.files[0];
   if (!file) return;
-  if (file.size > 10 * 1024 * 1024) {
-    showToast('Ukuran foto KTP maksimal 10MB.', 'warning');
-    inputEl.value = '';
-    return;
-  }
   var lbl = document.getElementById('lblBtnUploadMyProfKtp');
-  if (lbl) lbl.innerText = 'Mengunggah...';
-  var reader = new FileReader();
-  reader.onload = function(ev) {
+  if (lbl) lbl.innerText = 'Memproses...';
+  readFileSafeForUpload(file, { maxDim: 1600 }, function(processed) {
+    if (lbl) lbl.innerText = 'Mengunggah...';
     var userNama = (document.getElementById('myProfNama') ? document.getElementById('myProfNama').value.trim() : '') || (currentUserSession && currentUserSession.nama) || 'Pengguna';
     var payload = {
       module: 'user',
       folderType: 'user_ktp',
       targetName: userNama,
       targetEmail: currentUserSession ? currentUserSession.email : '',
-      fileName: file.name,
-      mimeType: file.type || 'image/jpeg',
-      base64Data: ev.target.result
+      fileName: processed.fileName,
+      mimeType: processed.mimeType,
+      base64Data: processed.dataUrl
     };
     callBackend('uploadStudioFile', [payload, currentUserSession], function(res) {
       if (lbl) lbl.innerText = 'Upload Foto KTP';
       inputEl.value = '';
       if (res && res.success) {
         var urlInp = document.getElementById('myProfFotoKtpUrl');
-        if (urlInp) urlInp.value = res.url || '';
+        if (urlInp) urlInp.value = res.url || res.fileUrl || '';
         updateMyProfileKtpPreviewState();
         showToast('Foto KTP berhasil diunggah ke Google Drive privat!', 'success');
       } else {
@@ -6008,10 +6193,13 @@ function handleMyProfileKtpUpload(inputEl) {
     }, function(err) {
       if (lbl) lbl.innerText = 'Upload Foto KTP';
       inputEl.value = '';
-      showToast('Gagal upload: ' + err.message, 'error');
+      showToast('Gagal upload: ' + ((err && err.message) || err || 'Jaringan terputus'), 'error');
     });
-  };
-  reader.readAsDataURL(file);
+  }, function(errMsg) {
+    if (lbl) lbl.innerText = 'Upload Foto KTP';
+    inputEl.value = '';
+    showToast(errMsg || 'Ukuran foto KTP terlalu besar.', 'warning');
+  });
 }
 
 function updateMyProfileKtpPreviewState() {

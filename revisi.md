@@ -1,7 +1,7 @@
 # 📋 DOKUMEN REVISI & RENCANA IMPLEMENTASI (revisi.md)
 **Sistem:** DoGo Studio V1 (v1.0 - Production Edition)  
 **Engine:** ZettBOT Core v4.1 by Zettbos  
-**Status Dokumen:** 🟢 100% SELESAI DITERAPKAN (VERIFIED & OPERATIONAL — REV-10.0 s.d. REV-10.21)
+**Status Dokumen:** 🟢 100% SELESAI DITERAPKAN (VERIFIED & OPERATIONAL — REV-10.0 s.d. REV-10.22)
 
 ---
 
@@ -1515,6 +1515,46 @@ Meskipun mayoritas endpoint bisnis telah memanggil `authenticateSession()` dan s
 - `scratch/validate_rev_10_16.js`: **59/59 PASSED**
 - `scratch/validate_rev_10_15.js`: **31/31 PASSED**
 - `scratch/validate_rev_10_13.js`: **8/8 PASSED**
+
+---
+
+## 🛡️ Audit Total & Implementasi Paket A + Paket B (REV-10.22)
+
+### Permintaan Pengguna:
+> "1. Review app · 2. cari celah bug · 3. cari celah keamanan · 4. ui ux nya apakah sudah maksimal"  
+> "OKE TERAPKAN A+B"
+
+### Paket A — Hardening Keamanan & Perbaikan Bug Kritis
+1. **Verifikasi Kriptografis Token Google OAuth2 ([code.gs](file:///c:/Users/RAZER/.gemini/antigravity-ide/Markaz%20Gacoria%20V1/code.gs)):**
+   - Mengganti decoder JWT sisi-server pasif dengan `verifyGoogleIdToken_()` yang memanggil `UrlFetchApp.fetch('https://oauth2.googleapis.com/tokeninfo?id_token=...')`, memeriksa HTTP `200`, `iss`, `aud` (`GOOGLE_CLIENT_ID`), `exp`, dan `email_verified`.
+   - Memperbaiki *edge case* pada `loginWithGoogle()` agar akun berstatus `Deleted` (non-owner) ditolak tegas dan tidak dibuat ulang sebagai akun baru.
+2. **Explicit API Whitelist Gateway & CORS Lock ([code.gs](file:///c:/Users/RAZER/.gemini/antigravity-ide/Markaz%20Gacoria%20V1/code.gs), [api/gas.js](file:///c:/Users/RAZER/.gemini/antigravity-ide/Markaz%20Gacoria%20V1/api/gas.js)):**
+   - `doPost(e)` hanya mengeksekusi aksi di dalam `PUBLIC_API_WHITELIST_` dengan pemeriksaan `Object.prototype.hasOwnProperty.call(...)` (mencegah refleksi ke `setupDatabase`, `runDailyWorkRecapJob`, fungsi berakhiran `_`, atau kunci `prototype`). `doGet(e)` dibatasi hanya ke `?action=ping` atau HTML shell.
+   - `api/gas.js` membatasi origin CORS (`ALLOWED_EXACT_ORIGINS` + preview regex Vercel milik project, menghapus wildcard `*`), hanya menerima metode `POST`/`OPTIONS`, dan menegakkan daftar `ALLOWED_ACTIONS`.
+3. **Eliminasi Kredensial Bawaan Lemah ([setup.gs](file:///c:/Users/RAZER/.gemini/antigravity-ide/Markaz%20Gacoria%20V1/setup.gs)):**
+   - `seedDefaultAdmin_()` mengganti `admin@dogostudio.com` / `admin123` menjadi `markazyoutuber.official@gmail.com` dengan kata sandi acak awal (`DgAdm!...`).
+4. **Kunci Kepemilikan Upload KTP & Guard `deleteFinance` ([code.gs](file:///c:/Users/RAZER/.gemini/antigravity-ide/Markaz%20Gacoria%20V1/code.gs)):**
+   - `uploadStudioFile()` memaksa folder `Database Pengguna/<Nama>` bagi non-admin memakai identitas sesi aktif dan memblokir upload KTP ke email orang lain.
+   - `deleteFinance()` hanya mengizinkan fallback `rowIndex` apabila `targetId` kosong **dan** baris target benar-benar tidak memiliki ID.
+5. **Kompresi Otomatis Upload, Google Sign-In UX, Modal Z-Index, & Anti-Deadlock Form ([js.html](file:///c:/Users/RAZER/.gemini/antigravity-ide/Markaz%20Gacoria%20V1/js.html), [css.html](file:///c:/Users/RAZER/.gemini/antigravity-ide/Markaz%20Gacoria%20V1/css.html)):**
+   - Helper `<canvas>` `readFileSafeForUpload()` otomatis mengecilkan gambar `> 1 MB` agar lolos batas payload 4,5 MB Vercel dan menolak non-gambar `> 3,1 MB` di mode non-GAS.
+   - `initGoogleSignIn()` dibatasi maks. 20 percobaan, nonaktif di sandbox GAS, lebar responsif `220..320px`; `handleGoogleSignInCallback()` mempertahankan `#modalLogin` tetap terlihat saat `pendingApproval: true`; `applyUserSessionUI()` merender `fotoProfil` tersanitasi pada `#sidebarUserAvatar`.
+   - Seluruh form submit utama (`handleSaveGranularPerms`, `handleChannelSubmit`, `handleQuickCompleteSubmit`, `handleEmailSubmit`, `handleAdSenseSubmit`, `handleFinanceSubmit`, `handleSaveKategoriKeuangan`, `handleMateriSubmit`, `handleToolSubmit`, `handleEditUserKtpUpload`, `handleMyProfileKtpUpload`) kini menyertakan callback `onFailure` yang memulihkan tombol, dan `callBackend()` melaporkan HTTP `413` serta status `!response.ok` menggunakan path relatif `'/api/gas'`.
+   - Menetapkan tangga `z-index` modal bertingkat (`50` -> `60` -> `70` -> `90`) agar modal pratinjau KTP/Keuangan/Materi & konfirmasi hapus tidak tertutup modal di belakangnya.
+
+### Paket B — Maksimalisasi UI/UX, Ekspansi Tong Sampah & PWA
+1. **Perbaikan Layout & Responsivitas Mobile ([index.html](file:///c:/Users/RAZER/.gemini/antigravity-ide/Markaz%20Gacoria%20V1/index.html), [modals.html](file:///c:/Users/RAZER/.gemini/antigravity-ide/Markaz%20Gacoria%20V1/modals.html), [css.html](file:///c:/Users/RAZER/.gemini/antigravity-ide/Markaz%20Gacoria%20V1/css.html)):**
+   - Menghapus `col-span-2` pada kartu KPI ke-6 agar grid 6 KPI tampil simetris (`2x3` di mobile), menambah padding bawah `<main>` (`pb-28 md:pb-8`), serta menambahkan offset `env(safe-area-inset-bottom)` di `.mobile-bottom-dock` dan aturan tabel ringkas `@media (max-width: 640px)`.
+   - Menambahkan scroll aman pada `#modalLogin`, memindahkan tombol daftar Google ke dalam Step 1 `#formRegister`, menambahkan banner panduan X-Frame-Options `#inAppToolFrameHint` pada `#modalInAppToolWorkspace`, serta fallback SVG inline `onerror` pada `/logo.jpg`.
+2. **Ekspansi Tong Sampah (`Pengguna` & `Laporan`) & Optimasi Cache/SW ([code.gs](file:///c:/Users/RAZER/.gemini/antigravity-ide/Markaz%20Gacoria%20V1/code.gs), [modals.html](file:///c:/Users/RAZER/.gemini/antigravity-ide/Markaz%20Gacoria%20V1/modals.html), [js.html](file:///c:/Users/RAZER/.gemini/antigravity-ide/Markaz%20Gacoria%20V1/js.html), [sw.js](file:///c:/Users/RAZER/.gemini/antigravity-ide/Markaz%20Gacoria%20V1/sw.js)):**
+   - `getTrashBinData()`, `restoreTrashItem()`, `permanentDeleteTrashItem()`, dan tab filter `#modalTrashBin` kini mencakup modul **Pengguna** & **Laporan** (dengan guard peran admin untuk Pengguna).
+   - Mengaktifkan TTL cache `CACHE_TTL_MS` pada `loadMateriData()` & `loadToolsData()`, menyeragamkan status dot badge UI (`renderStatusDotBadge`), serta memutakhirkan Service Worker ke `dogo-studio-cache-v2` (*Stale-While-Revalidate* + pengecualian origin Google OAuth).
+
+### Hasil Verifikasi (`REV-10.22`):
+- `scratch/validate_rev_10_22.js`: **58/58 PASSED** (`0 FAILED`)
+- `scratch/validate_syntax.js`: **100% VALID & BALANCED**
+- Regresi lintas versi lolos 100%: `validate_rev_10_21.js` (**88/88**), `validate_rev_10_20.js` (**92/92**), `validate_rev_10_19.js` (**114/114**), `validate_rev_10_17.js` (**41/41**), `validate_rev_10_16.js` (**59/59**), `validate_rev_10_15.js` (**31/31**), `validate_rev_10_13.js`, `10_12`, `10_11`, `10_10`. *(Catatan: skrip historis `10_9`, `10_14`, dan `10_18` menyisakan 1–2 cek string literal lama yang memang telah digantikan oleh pembaruan `REV-10.15`/`10.21`/`10.22`).*
+
 
 
 

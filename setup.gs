@@ -116,14 +116,15 @@ function seedDefaultAdmin_(ss) {
   var sheet = ss.getSheetByName('DataUsers');
   if (sheet && sheet.getLastRow() <= 1) {
     var nowStr = Utilities.formatDate(new Date(), 'Asia/Jakarta', 'dd/MM/yyyy HH:mm:ss');
-    var defaultPass = (typeof hashPasswordSHA256 === 'function') ? hashPasswordSHA256('admin123') : 'admin123';
+    var generatedInitPass = 'DgAdm!' + Utilities.getUuid().replace(/-/g, '').slice(0, 12);
+    var defaultPass = (typeof hashPasswordSHA256 === 'function') ? hashPasswordSHA256(generatedInitPass) : generatedInitPass;
     var defaultAdmin = [
       'USR-0001',
       'Owner Studio',
       '3171012345670001',
       '081234567890',
       'Studio Headquarter Jakarta',
-      'admin@dogostudio.com',
+      'markazyoutuber.official@gmail.com',
       defaultPass,
       'SUPER_ADMIN',
       '',
@@ -139,6 +140,9 @@ function seedDefaultAdmin_(ss) {
       'Active'
     ];
     sheet.appendRow(defaultAdmin);
+    if (typeof Logger !== 'undefined' && Logger.log) {
+      Logger.log('Default Owner seeded (markazyoutuber.official@gmail.com). Initial random password generated (use Google Sign-In or reset OTP).');
+    }
   }
 }
 

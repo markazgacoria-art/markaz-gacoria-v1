@@ -132,6 +132,24 @@ body {
   display: none !important;
 }
 
+/* Stacked Modal Z-Index Hierarchy (REV-10.22) */
+#modalTambahKategoriKeuangan,
+#modalDetailEmail,
+#modalConnectedChannels {
+  z-index: 60;
+}
+
+#modalKtpPreview,
+#modalFinancePreview,
+#modalMateriPlayer,
+#modalStaffWorkTimeline {
+  z-index: 70;
+}
+
+#modalConfirmAction {
+  z-index: 90;
+}
+
 /* Mobile Bottom Dock (Floating Bar) */
 .mobile-bottom-dock {
   background: rgba(7, 18, 11, 0.92);
@@ -140,6 +158,7 @@ body {
   border: 1px solid rgba(0, 230, 118, 0.25);
   border-radius: 1.5rem;
   box-shadow: 0 10px 30px rgba(0, 0, 0, 0.8), 0 0 15px rgba(0, 230, 118, 0.15);
+  bottom: calc(0.75rem + env(safe-area-inset-bottom, 0px)) !important;
 }
 
 .mobile-center-elevated-btn {
@@ -223,5 +242,19 @@ body {
   background-color: #0a1710 !important;
   border-bottom: 1px solid rgba(0, 230, 118, 0.2) !important;
   box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.5), 0 2px 4px -2px rgba(0, 0, 0, 0.5) !important;
+}
+
+@media (max-width: 640px) {
+  .table-scroll-container th,
+  .table-scroll-container td,
+  .table-scroll-container-finance th,
+  .table-scroll-container-finance td {
+    padding: 0.55rem 0.65rem !important;
+    font-size: 0.72rem !important;
+  }
+  .table-scroll-container,
+  .table-scroll-container-finance {
+    max-height: calc(100vh - 255px);
+  }
 }
 </style>
