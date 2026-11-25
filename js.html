@@ -1081,12 +1081,33 @@ function callBackend(fnName, args, onSuccess, onFailure) {
       });
     runner[fnName].apply(runner, args);
   } else {
-    console.warn('Simulasi lingkungan non-GAS untuk:', fnName);
-    setTimeout(function() {
-      if (typeof onSuccess === 'function') {
-        onSuccess({ success: false, message: 'Menjalankan di luar lingkungan Google Apps Script' });
+    // Jembatan REST API Otomatis untuk Hosting Vercel / Eksternal
+    var defaultGasUrl = 'https://script.google.com/macros/s/AKfycbyiJ9RAUq75VHFBBnLRpswRoCFVMHy_ppyL1Q8nGLqVO5_yIFO5Dc88zPadTnKLQcpP/exec';
+    var isVercelHost = (typeof window !== 'undefined' && window.location && window.location.hostname && (window.location.hostname.indexOf('vercel.app') !== -1 || window.location.hostname === 'localhost'));
+    var apiEndpoint = isVercelHost ? '/api/gas' : defaultGasUrl;
+
+    fetch(apiEndpoint, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'text/plain'
+      },
+      body: JSON.stringify({ action: fnName, args: args || [] }),
+      redirect: 'follow'
+    })
+    .then(function(response) {
+      return response.json();
+    })
+    .then(function(data) {
+      wrappedSuccess(data);
+    })
+    .catch(function(err) {
+      console.error('DoGo API Gateway Error (' + fnName + '):', err);
+      if (typeof onFailure === 'function') {
+        onFailure(err);
+      } else {
+        showToast('Koneksi Gagal: ' + (err.message || 'Tidak dapat terhubung ke server backend'), 'error');
       }
-    }, 500);
+    });
   }
 }
 

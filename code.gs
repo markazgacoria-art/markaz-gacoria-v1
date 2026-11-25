@@ -62,11 +62,63 @@ var WORK_REPORT_CATEGORIES = [
  * ================================================================================
  */
 function doGet(e) {
+  if (e && e.parameter && e.parameter.action) {
+    return doPost(e);
+  }
   return HtmlService.createTemplateFromFile('index')
     .evaluate()
     .setTitle('DoGo Studio V1 - YouTube Content Management System')
     .addMetaTag('viewport', 'width=device-width, initial-scale=1')
     .setXFrameOptionsMode(HtmlService.XFrameOptionsMode.DEFAULT);
+}
+
+function doPost(e) {
+  try {
+    var rawData = (e && e.postData && e.postData.contents) ? e.postData.contents : '';
+    var request = {};
+    if (rawData) {
+      try {
+        request = JSON.parse(rawData);
+      } catch (err) {
+        request = {};
+      }
+    }
+    var action = request.action || (e && e.parameter && e.parameter.action) || '';
+    var args = Array.isArray(request.args) ? request.args : (request.payload !== undefined ? [request.payload] : []);
+    
+    if (action === 'ping') {
+      return ContentService.createTextOutput(JSON.stringify({
+        success: true,
+        message: 'DoGo Studio API Gateway Online',
+        timestamp: new Date().toISOString()
+      })).setMimeType(ContentService.MimeType.JSON);
+    }
+    
+    // Whitelist keamanan: Hanya fungsi publik yang tidak berakhiran underscore '_' dan bukan fungsi sistem routing
+    if (!action || typeof action !== 'string' || action.endsWith('_') || action === 'doGet' || action === 'doPost' || action === 'include') {
+      return ContentService.createTextOutput(JSON.stringify({
+        success: false,
+        message: 'Aksi API tidak valid atau privat: ' + action
+      })).setMimeType(ContentService.MimeType.JSON);
+    }
+    
+    var fn = this[action];
+    if (typeof fn !== 'function') {
+      return ContentService.createTextOutput(JSON.stringify({
+        success: false,
+        message: 'Fungsi backend tidak ditemukan: ' + action
+      })).setMimeType(ContentService.MimeType.JSON);
+    }
+    
+    var result = fn.apply(this, args);
+    return ContentService.createTextOutput(JSON.stringify(result !== undefined ? result : { success: true }))
+      .setMimeType(ContentService.MimeType.JSON);
+  } catch (ex) {
+    return ContentService.createTextOutput(JSON.stringify({
+      success: false,
+      message: 'Server Error: ' + ex.message
+    })).setMimeType(ContentService.MimeType.JSON);
+  }
 }
 
 function include(filename) {
