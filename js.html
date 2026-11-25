@@ -668,6 +668,16 @@ document.addEventListener('DOMContentLoaded', function() {
   initApp();
 });
 
+function hideInitialSplash() {
+  var splash = document.getElementById('appInitialSplash');
+  if (splash) {
+    splash.classList.add('opacity-0', 'pointer-events-none');
+    setTimeout(function() {
+      splash.classList.add('hidden');
+    }, 320);
+  }
+}
+
 function initApp() {
   // Start Real-Time Digital Clock
   updateDigitalClock();
@@ -701,11 +711,9 @@ function initApp() {
       if (parsed && parsed.token && String(parsed.token).length >= 20 && (parsed.email || parsed.nama)) {
         var authWrapperPre = document.getElementById('appAuthWrapper');
         if (authWrapperPre) authWrapperPre.classList.add('hidden');
-        setInlineAuthError('loginErrorMsg', 'Memverifikasi token sesi di server...', true);
-        openModal('modalLogin');
 
+        // ZERO-FLASH VERIFICATION: Jangan buka modalLogin saat token sedang diverifikasi!
         callBackend('syncUserSession', [{ token: String(parsed.token) }], function(res) {
-          setInlineAuthError('loginErrorMsg', '');
           if (res && res.success && res.userSession && res.userSession.token) {
             currentUserSession = res.userSession;
             localStorage.setItem(SESSION_KEY, JSON.stringify(currentUserSession));
@@ -719,16 +727,23 @@ function initApp() {
             } else {
               showToast('Akun Anda belum memiliki izin akses modul apapun. Hubungi Super Admin.', 'warning');
             }
+            hideInitialSplash();
           } else {
             localStorage.removeItem(SESSION_KEY);
             currentUserSession = null;
             clearAllClientMemoryCaches();
+            hideInitialSplash();
+            openModal('modalLogin');
+            if (res && res.message) {
+              showToast(res.message, 'warning');
+            }
           }
-        }, function() {
-          setInlineAuthError('loginErrorMsg', '');
+        }, function(err) {
           localStorage.removeItem(SESSION_KEY);
           currentUserSession = null;
           clearAllClientMemoryCaches();
+          hideInitialSplash();
+          openModal('modalLogin');
         });
         return;
       } else {
@@ -740,7 +755,8 @@ function initApp() {
     }
   }
 
-  // Not logged in -> Show Login Modal, Keep Auth Wrapper Hidden
+  // Not logged in -> Hide Splash, Show Login Modal, Keep Auth Wrapper Hidden
+  hideInitialSplash();
   var authWrapper = document.getElementById('appAuthWrapper');
   if (authWrapper) authWrapper.classList.add('hidden');
   openModal('modalLogin');

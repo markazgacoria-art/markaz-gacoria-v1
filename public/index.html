@@ -257,6 +257,17 @@ body {
 </head>
 <body class="bg-[#060d09] text-slate-100 min-h-screen flex flex-col font-['Inter'] antialiased selection:bg-emerald-500 selection:text-black">
 
+  <!-- App Initial Splash Screen (Eliminates login modal flash on reload) -->
+  <div id="appInitialSplash" class="fixed inset-0 z-[99999] bg-[#060d09] flex flex-col items-center justify-center gap-4 transition-opacity duration-300">
+    <div class="relative">
+      <img src="/logo.jpg" alt="DoGo Studio" class="w-20 h-20 rounded-2xl object-cover shadow-2xl shadow-emerald-500/30 border border-emerald-500/40 animate-pulse">
+    </div>
+    <div class="flex items-center gap-2.5 text-emerald-400 text-xs font-semibold tracking-wider">
+      <i class="fa-solid fa-circle-notch fa-spin text-sm"></i>
+      <span id="splashStatusText">Memuat DoGo Studio...</span>
+    </div>
+  </div>
+
   <!-- Toast Notification Container -->
   <div id="toastContainer" class="fixed top-5 right-5 z-[9999] flex flex-col gap-2 pointer-events-none max-w-sm w-full"></div>
 
@@ -4348,6 +4359,16 @@ document.addEventListener('DOMContentLoaded', function() {
   initApp();
 });
 
+function hideInitialSplash() {
+  var splash = document.getElementById('appInitialSplash');
+  if (splash) {
+    splash.classList.add('opacity-0', 'pointer-events-none');
+    setTimeout(function() {
+      splash.classList.add('hidden');
+    }, 320);
+  }
+}
+
 function initApp() {
   // Start Real-Time Digital Clock
   updateDigitalClock();
@@ -4381,11 +4402,9 @@ function initApp() {
       if (parsed && parsed.token && String(parsed.token).length >= 20 && (parsed.email || parsed.nama)) {
         var authWrapperPre = document.getElementById('appAuthWrapper');
         if (authWrapperPre) authWrapperPre.classList.add('hidden');
-        setInlineAuthError('loginErrorMsg', 'Memverifikasi token sesi di server...', true);
-        openModal('modalLogin');
 
+        // ZERO-FLASH VERIFICATION: Jangan buka modalLogin saat token sedang diverifikasi!
         callBackend('syncUserSession', [{ token: String(parsed.token) }], function(res) {
-          setInlineAuthError('loginErrorMsg', '');
           if (res && res.success && res.userSession && res.userSession.token) {
             currentUserSession = res.userSession;
             localStorage.setItem(SESSION_KEY, JSON.stringify(currentUserSession));
@@ -4399,16 +4418,23 @@ function initApp() {
             } else {
               showToast('Akun Anda belum memiliki izin akses modul apapun. Hubungi Super Admin.', 'warning');
             }
+            hideInitialSplash();
           } else {
             localStorage.removeItem(SESSION_KEY);
             currentUserSession = null;
             clearAllClientMemoryCaches();
+            hideInitialSplash();
+            openModal('modalLogin');
+            if (res && res.message) {
+              showToast(res.message, 'warning');
+            }
           }
-        }, function() {
-          setInlineAuthError('loginErrorMsg', '');
+        }, function(err) {
           localStorage.removeItem(SESSION_KEY);
           currentUserSession = null;
           clearAllClientMemoryCaches();
+          hideInitialSplash();
+          openModal('modalLogin');
         });
         return;
       } else {
@@ -4420,7 +4446,8 @@ function initApp() {
     }
   }
 
-  // Not logged in -> Show Login Modal, Keep Auth Wrapper Hidden
+  // Not logged in -> Hide Splash, Show Login Modal, Keep Auth Wrapper Hidden
+  hideInitialSplash();
   var authWrapper = document.getElementById('appAuthWrapper');
   if (authWrapper) authWrapper.classList.add('hidden');
   openModal('modalLogin');

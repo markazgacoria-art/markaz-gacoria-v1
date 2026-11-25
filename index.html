@@ -30,6 +30,17 @@
 </head>
 <body class="bg-[#060d09] text-slate-100 min-h-screen flex flex-col font-['Inter'] antialiased selection:bg-emerald-500 selection:text-black">
 
+  <!-- App Initial Splash Screen (Eliminates login modal flash on reload) -->
+  <div id="appInitialSplash" class="fixed inset-0 z-[99999] bg-[#060d09] flex flex-col items-center justify-center gap-4 transition-opacity duration-300">
+    <div class="relative">
+      <img src="/logo.jpg" alt="DoGo Studio" class="w-20 h-20 rounded-2xl object-cover shadow-2xl shadow-emerald-500/30 border border-emerald-500/40 animate-pulse">
+    </div>
+    <div class="flex items-center gap-2.5 text-emerald-400 text-xs font-semibold tracking-wider">
+      <i class="fa-solid fa-circle-notch fa-spin text-sm"></i>
+      <span id="splashStatusText">Memuat DoGo Studio...</span>
+    </div>
+  </div>
+
   <!-- Toast Notification Container -->
   <div id="toastContainer" class="fixed top-5 right-5 z-[9999] flex flex-col gap-2 pointer-events-none max-w-sm w-full"></div>
 
